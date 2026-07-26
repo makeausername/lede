@@ -142,6 +142,8 @@ jobs:
           require_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
+          require_config 'CONFIG_PACKAGE_luci-ssl-openssl=y'
+          require_config 'CONFIG_PACKAGE_libustream-openssl=y'
           require_config 'CONFIG_PACKAGE_luci-theme-argon=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y'
@@ -150,6 +152,8 @@ jobs:
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y'
+          reject_config 'CONFIG_PACKAGE_luci-ssl=y'
+          reject_config 'CONFIG_PACKAGE_libustream-mbedtls=y'
 
           ./scripts/diffconfig.sh | tee hkc-n60-pro.diffconfig
 
