@@ -1,0 +1,39 @@
+diff --git a/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua b/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
+index 8d22728..63ec897 100755
+--- a/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
++++ b/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
+@@ -240,16 +240,19 @@ local function collect_subscribe_items()
+-		return items
+-	end
+-
+-	local legacy_urls = ucic:get_first(name, 'server_subscribe', 'subscribe_url', {})
+-	for index, url in ipairs(legacy_urls or {}) do
+-		url = trim(url)
+-		if url ~= "" then
+-			items[#items + 1] = {
+-				sid = "legacy_" .. index,
+-				alias = "Legacy " .. index,
+-				url = url
+-			}
+-		end
+-	end
++        return items
++    end
++
++    local legacy_urls = ucic:get_first(name, 'server_subscribe', 'subscribe_url', {})
++    if type(legacy_urls) == "string" then
++        legacy_urls = { legacy_urls }
++    end
++    for index, url in ipairs(legacy_urls or {}) do
++        url = trim(url)
++        if url ~= "" then
++            items[#items + 1] = {
++                sid = "legacy_" .. index,
++                alias = "Legacy " .. index,
++                url = url
++            }
++        end
++    end
+ 
+ 	return items
+ end

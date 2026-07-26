@@ -1,0 +1,96 @@
+#!/bin/sh
+
+set -eu
+
+WIFI_PASSWORD='__WIFI_PASSWORD__'
+
+if [ "$WIFI_PASSWORD" = '__WIFI_PASSWORD__' ] || [ -z "$WIFI_PASSWORD" ]; then
+	echo "HKC firmware: Wi-Fi password was not injected" >&2
+	exit 1
+fi
+
+# System identity, timezone and browser-language-driven LuCI.
+uci -q set system.@system[0].hostname='HKC'
+uci -q set system.@system[0].zonename='Asia/Shanghai'
+uci -q set system.@system[0].timezone='CST-8'
+uci -q set luci.main.lang='auto'
+uci -q set luci.main.mediaurlbase='/luci-static/argon'
+uci -q commit system
+uci -q commit luci
+
+# Generate the device's radio sections when no wireless configuration exists.
+if ! uci -q show wireless | grep -q '=wifi-device$'; then
+	wifi config
+fi
+
+# This image is for a fresh N60 Pro installation: keep one deterministic AP
+# interface per hardware radio and do not carry vendor/guest defaults forward.
+while uci -q delete wireless.@wifi-iface[0] 2>/dev/null; do
+	:
+done
+
+for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	band="$(uci -q get "wireless.${radio}.band" || true)"
+
+	case "$band" in
+		2g)
+			ssid='HKC'
+			htmode='HE20'
+			;;
+		5g)
+			ssid='HKC-5G'
+			htmode='HE80'
+			;;
+		*)
+			echo "HKC firmware: skipping unknown radio band on ${radio}" >&2
+			continue
+			;;
+	esac
+
+	uci -q set "wireless.${radio}.disabled=0"
+	uci -q set "wireless.${radio}.country=CN"
+	uci -q set "wireless.${radio}.channel=auto"
+	uci -q set "wireless.${radio}.htmode=${htmode}"
+
+	iface="$(uci -q add wireless wifi-iface)"
+	uci -q set "wireless.${iface}.device=${radio}"
+	uci -q set "wireless.${iface}.network=lan"
+	uci -q set "wireless.${iface}.mode=ap"
+	uci -q set "wireless.${iface}.ssid=${ssid}"
+	uci -q set "wireless.${iface}.encryption=sae-mixed"
+	uci -q set "wireless.${iface}.key=${WIFI_PASSWORD}"
+	uci -q set "wireless.${iface}.ieee80211w=1"
+	uci -q set "wireless.${iface}.wps_pushbutton=0"
+done
+uci -q commit wireless
+
+# SSR Plus+ subscription policy. The URL itself is deliberately not embedded.
+# A direct first fetch avoids the bootstrap failure caused by proxying through a
+# node which does not exist until the first subscription has been downloaded.
+if ! uci -q get shadowsocksr.@server_subscribe[0] >/dev/null 2>&1; then
+	uci -q add shadowsocksr server_subscribe >/dev/null
+fi
+uci -q set shadowsocksr.@server_subscribe[0].proxy='0'
+uci -q set shadowsocksr.@server_subscribe[0].auto_update='1'
+uci -q set shadowsocksr.@server_subscribe[0].config_auto_update_mode='0'
+uci -q set shadowsocksr.@server_subscribe[0].auto_update_week_time='*'
+uci -q set shadowsocksr.@server_subscribe[0].auto_update_day_time='5'
+uci -q set shadowsocksr.@server_subscribe[0].auto_update_min_time='0'
+uci -q set shadowsocksr.@server_subscribe[0].user_agent='v2rayN/9.99'
+uci -q set shadowsocksr.@server_subscribe[0].allow_insecure='0'
+uci -q set shadowsocksr.@server_subscribe[0].switch='1'
+uci -q set shadowsocksr.@server_subscribe[0].enable_mihomo='0'
+uci -q set shadowsocksr.@server_subscribe[0].sub_convert='0'
+uci -q set shadowsocksr.@server_subscribe[0].filter_words='过期/重置/套餐/剩余/网址/QQ群/官网/防失联/回国'
+uci -q commit shadowsocksr
+
+# Weekly reboot: every Sunday at 03:00 Asia/Shanghai.
+cron_file='/etc/crontabs/root'
+touch "$cron_file"
+sed -i '/# HKC weekly reboot$/d' "$cron_file"
+echo '0 3 * * 0 /sbin/reboot # HKC weekly reboot' >>"$cron_file"
+
+/etc/init.d/cron enable
+/etc/init.d/shadowsocksr enable
+
+exit 0
