@@ -56,11 +56,13 @@ jobs:
           sudo rm -f preview-root/etc/uci-defaults/zz-hkc-defaults-v2
           sudo cp /usr/bin/qemu-aarch64-static preview-root/usr/bin/
           test -x preview-root/www/cgi-bin/luci
-          # uhttpd's CGI dispatcher requires the world-executable bit. The
-          # squashfs metadata is safe for the router but can be narrowed by
-          # artifact extraction under the hosted runner, so normalize only
-          # this temporary preview copy.
-          sudo chmod 0755 preview-root/www/cgi-bin/luci
+          # This image ships LuCI's standalone Lua CGI without uhttpd's Lua
+          # plugin. Keep the exact LuCI entrypoint and add an explicit Lua
+          # wrapper only inside the temporary extracted preview root.
+          sudo mv preview-root/www/cgi-bin/luci \
+            preview-root/www/cgi-bin/luci.lua
+          sudo install -m 0755 .github/scripts/luci-preview-cgi \
+            preview-root/www/cgi-bin/luci
           sudo mkdir -p preview-root/{proc,sys,dev,var/run/ubus,tmp}
           sudo chmod 1777 preview-root/tmp
           sudo mount --bind /dev preview-root/dev
@@ -202,7 +204,6 @@ jobs:
 
           sudo chroot preview-root /usr/bin/qemu-aarch64-static \
             /usr/sbin/uhttpd -f -h /www -r HKC -x /cgi-bin \
-            -i luci=/usr/bin/lua \
             -p 127.0.0.1:8080 -t 60 -T 30 \
             >preview-logs/uhttpd.log 2>&1 &
           uhttpd_pid=$!
@@ -213,7 +214,9 @@ jobs:
             fi
             sleep 1
           done
-          if ! curl -fsS http://127.0.0.1:8080/cgi-bin/luci/ >/dev/null; then
+          if ! curl -fsS -D preview-logs/http-headers.txt \
+            -o preview-logs/http-body.html \
+            http://127.0.0.1:8080/cgi-bin/luci/; then
             cat preview-logs/uhttpd.log
             exit 1
           fi
