@@ -56,6 +56,11 @@ jobs:
           sudo rm -f preview-root/etc/uci-defaults/zz-hkc-defaults-v2
           sudo cp /usr/bin/qemu-aarch64-static preview-root/usr/bin/
           test -x preview-root/www/cgi-bin/luci
+          # uhttpd's CGI dispatcher requires the world-executable bit. The
+          # squashfs metadata is safe for the router but can be narrowed by
+          # artifact extraction under the hosted runner, so normalize only
+          # this temporary preview copy.
+          sudo chmod 0755 preview-root/www/cgi-bin/luci
           sudo mkdir -p preview-root/{proc,sys,dev,var/run/ubus,tmp}
           sudo chmod 1777 preview-root/tmp
           sudo mount --bind /dev preview-root/dev
