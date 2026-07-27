@@ -4,7 +4,7 @@ set -eu
 
 WIFI_PASSWORD='__WIFI_PASSWORD__'
 
-if [ "$WIFI_PASSWORD" = '__WIFI_PASSWORD__' ] || [ -z "$WIFI_PASSWORD" ]; then
+if [ -z "$WIFI_PASSWORD" ]; then
 	echo "HKC firmware: Wi-Fi password was not injected" >&2
 	exit 1
 fi
@@ -13,9 +13,12 @@ fi
 uci -q set system.@system[0].hostname='HKC'
 uci -q set system.@system[0].zonename='Asia/Shanghai'
 uci -q set system.@system[0].timezone='CST-8'
+uci -q set network.lan.ipaddr='192.168.8.1'
+uci -q set network.lan.netmask='255.255.255.0'
 uci -q set luci.main.lang='auto'
 uci -q set luci.main.mediaurlbase='/luci-static/argon'
 uci -q commit system
+uci -q commit network
 uci -q commit luci
 
 # Generate the device's radio sections when no wireless configuration exists.
@@ -25,10 +28,11 @@ fi
 
 # This image is for a fresh N60 Pro installation: keep one deterministic AP
 # interface per hardware radio and do not carry vendor/guest defaults forward.
-while uci -q delete wireless.@wifi-iface[0] 2>/dev/null; do
+while uci -q delete 'wireless.@wifi-iface[0]' 2>/dev/null; do
 	:
 done
 
+radio_count=0
 for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
 	band="$(uci -q get "wireless.${radio}.band" || true)"
 
@@ -42,10 +46,11 @@ for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-devic
 			htmode='HE80'
 			;;
 		*)
-			echo "HKC firmware: skipping unknown radio band on ${radio}" >&2
-			continue
+			echo "HKC firmware: unsupported radio band on ${radio}" >&2
+			exit 1
 			;;
 	esac
+	radio_count=$((radio_count + 1))
 
 	uci -q set "wireless.${radio}.disabled=0"
 	uci -q set "wireless.${radio}.country=CN"
@@ -62,7 +67,23 @@ for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-devic
 	uci -q set "wireless.${iface}.ieee80211w=1"
 	uci -q set "wireless.${iface}.wps_pushbutton=0"
 done
+
+if [ "$radio_count" -ne 2 ]; then
+	echo "HKC firmware: expected two wireless radios, found ${radio_count}" >&2
+	exit 1
+fi
 uci -q commit wireless
+
+# Gaming-friendly NAT traversal. Secure mode limits a LAN client to opening a
+# forwarding rule for itself; it does not expose the LuCI administration page.
+if uci -q get upnpd.config >/dev/null 2>&1; then
+	uci -q set upnpd.config.enabled='1'
+	uci -q set upnpd.config.enable_natpmp='1'
+	uci -q set upnpd.config.enable_upnp='1'
+	uci -q set upnpd.config.secure_mode='1'
+	uci -q set upnpd.config.internal_iface='lan'
+	uci -q commit upnpd
+fi
 
 # SSR Plus+ routing and DNS policy. Keep IP Route Mode (bypass mainland China),
 # but force selected AI/TikTok domains through the proxy even if their resolved
@@ -124,5 +145,6 @@ echo '0 3 * * 0 /sbin/reboot # HKC weekly reboot' >>"$cron_file"
 
 /etc/init.d/cron enable
 /etc/init.d/shadowsocksr enable
+[ ! -x /etc/init.d/miniupnpd ] || /etc/init.d/miniupnpd enable
 
 exit 0

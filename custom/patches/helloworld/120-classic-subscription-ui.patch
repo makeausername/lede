@@ -1,0 +1,21 @@
+diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+index 9fb594e..74b727f 100644
+--- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
++++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+@@ -400,4 +400 @@ elseif upload_message then
+-local style_section = m:section(SimpleSection)
+-style_section.template = "shadowsocksr/servers_subscribe_url_style"
+-
+ -- Server Subscribe
+@@ -578,10 +575,6 @@ if has_mihomo then
+-s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
+-
+ s = m:section(TypedSection, "server_subscribe_item", translate("Subscribe URL"))
+ s.anonymous = true
+ s.addremove = true
+ s.sortable = true
+-s.template = "shadowsocksr/subscribe_actions_footer"
+---s.template = "cbi/tblsection"
+---s.template_addremove = "shadowsocksr/subscribe_actions_footer"
++s.template = "cbi/tblsection"
+ s.description = translate("Manage multiple subscribe URLs, including Clash subscriptions. Only enabled entries are included when updating all subscriptions.")

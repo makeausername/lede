@@ -99,6 +99,12 @@ jobs:
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-rules
+          grep -Fq 's.template = "cbi/tblsection"' \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          ! grep -Fq 's.template = "shadowsocksr/subscribe_actions_footer"' \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          ! grep -Fq 'servers_subscribe_url_style' \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -109,19 +115,28 @@ jobs:
             echo "::error::WIFI_PASSWORD must be 8-63 ASCII letters or digits"
             exit 1
           fi
+          if [ "$(grep -oF '__WIFI_PASSWORD__' custom/hkc-defaults.sh.in | wc -l)" -ne 1 ]; then
+            echo "::error::Wi-Fi password template must contain exactly one placeholder"
+            exit 1
+          fi
 
           install -d files/etc/uci-defaults
           install -m 0755 custom/hkc-defaults.sh.in \
-            files/etc/uci-defaults/zz-hkc-defaults
+            files/etc/uci-defaults/zz-hkc-defaults-v2
           install -d files/usr/share/hkc
           install -m 0644 custom/forced-proxy-domains.list \
             files/usr/share/hkc/forced-proxy-domains.list
           sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
-            files/etc/uci-defaults/zz-hkc-defaults
-          if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults; then
+            files/etc/uci-defaults/zz-hkc-defaults-v2
+          if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults-v2; then
             echo "::error::Wi-Fi password placeholder was not replaced"
             exit 1
           fi
+          sh -n files/etc/uci-defaults/zz-hkc-defaults-v2
+          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" files/etc/uci-defaults/zz-hkc-defaults-v2
+          grep -Fq "network.lan.ipaddr='192.168.8.1'" files/etc/uci-defaults/zz-hkc-defaults-v2
+          grep -Fq 'wireless.${iface}.ssid=${ssid}' files/etc/uci-defaults/zz-hkc-defaults-v2
+          grep -Fq "upnpd.config.secure_mode='1'" files/etc/uci-defaults/zz-hkc-defaults-v2
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -155,6 +170,9 @@ jobs:
           }
 
           require_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'
+          require_config 'CONFIG_TARGET_PREINIT_IP="192.168.8.1"'
+          require_config 'CONFIG_TARGET_PREINIT_BROADCAST="192.168.8.255"'
+          require_config 'CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
@@ -165,6 +183,9 @@ jobs:
           require_config 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y'
           require_config 'CONFIG_PACKAGE_wpad-openssl=y'
+          require_config 'CONFIG_PACKAGE_luci-app-upnp=y'
+          require_config 'CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y'
+          require_config 'CONFIG_PACKAGE_miniupnpd-iptables=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Mihomo=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
@@ -172,6 +193,9 @@ jobs:
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy=y'
           reject_config 'CONFIG_PACKAGE_luci-ssl=y'
           reject_config 'CONFIG_PACKAGE_libustream-mbedtls=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-wol=y'
+          reject_config 'CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y'
+          reject_config 'CONFIG_PACKAGE_miniupnpd-nftables=y'
 
           ./scripts/diffconfig.sh | tee hkc-n60-pro.diffconfig
 
@@ -218,7 +242,32 @@ jobs:
           grep -Eq '^luci-theme-argon ' "$manifest"
           grep -Eq '^luci-i18n-base-zh-cn ' "$manifest"
           grep -Eq '^luci-i18n-ssr-plus-zh-cn ' "$manifest"
+          grep -Eq '^luci-app-upnp ' "$manifest"
+          grep -Eq '^luci-i18n-upnp-zh-cn ' "$manifest"
+          grep -Eq '^miniupnpd-iptables ' "$manifest"
+          ! grep -Eq '^(luci-app-wol|luci-i18n-wol-zh-cn) ' "$manifest"
           ! grep -Eq '^(mihomo|mosdns|shadowsocksr-libev-|3proxy) ' "$manifest"
+
+          inspect_dir="$(mktemp -d)"
+          trap 'rm -rf "$inspect_dir"' EXIT
+          tar -xf "$firmware" -C "$inspect_dir"
+          root_image="$(find "$inspect_dir" -type f -name root -print -quit)"
+          test -n "$root_image"
+          unsquashfs -d "$inspect_dir/rootfs" "$root_image" >/dev/null
+
+          defaults="$inspect_dir/rootfs/etc/uci-defaults/zz-hkc-defaults-v2"
+          ssr_model="$inspect_dir/rootfs/usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua"
+          test -x "$defaults"
+          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
+          grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
+          grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
+          grep -Fq "ssid='HKC'" "$defaults"
+          grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq 'wireless.${iface}.encryption=sae-mixed' "$defaults"
+          grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
+          grep -Fq 'pi_ip="192.168.8.1"' "$inspect_dir/rootfs/lib/preinit/00_preinit.conf"
+          grep -Fq 's.template = "cbi/tblsection"' "$ssr_model"
+          ! grep -Fq 's.template = "shadowsocksr/subscribe_actions_footer"' "$ssr_model"
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
