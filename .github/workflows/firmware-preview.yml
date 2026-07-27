@@ -202,6 +202,7 @@ jobs:
 
           sudo chroot preview-root /usr/bin/qemu-aarch64-static \
             /usr/sbin/uhttpd -f -h /www -r HKC -x /cgi-bin \
+            -i luci=/usr/bin/lua \
             -p 127.0.0.1:8080 -t 60 -T 30 \
             >preview-logs/uhttpd.log 2>&1 &
           uhttpd_pid=$!
