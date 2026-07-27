@@ -87,16 +87,18 @@ jobs:
 
           ./scripts/feeds update -a -i
 
-      - name: Apply subscription compatibility fix
+      - name: Apply SSR Plus compatibility and routing fixes
         shell: bash
         run: |
           set -euo pipefail
-          git -C feeds/helloworld apply --check \
-            ../../custom/patches/helloworld/100-single-subscribe-url.patch
-          git -C feeds/helloworld apply \
-            ../../custom/patches/helloworld/100-single-subscribe-url.patch
+          for patch in custom/patches/helloworld/*.patch; do
+            git -C feeds/helloworld apply --check "../../${patch}"
+            git -C feeds/helloworld apply "../../${patch}"
+          done
           grep -Fq 'legacy_urls = { legacy_urls }' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
+          grep -Fq 'forced proxy domains must win before the China-IP bypass' \
+            feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-rules
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -111,10 +113,23 @@ jobs:
           install -d files/etc/uci-defaults
           install -m 0755 custom/hkc-defaults.sh.in \
             files/etc/uci-defaults/zz-hkc-defaults
+          install -d files/usr/share/hkc
+          install -m 0644 custom/forced-proxy-domains.list \
+            files/usr/share/hkc/forced-proxy-domains.list
           sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
             files/etc/uci-defaults/zz-hkc-defaults
           if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults; then
             echo "::error::Wi-Fi password placeholder was not replaced"
+            exit 1
+          fi
+          for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
+            grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
+              echo "::error::Required forced-proxy domain missing: $domain"
+              exit 1
+            }
+          done
+          if grep -Ev '^(#.*|[a-z0-9.-]+|)$' files/usr/share/hkc/forced-proxy-domains.list; then
+            echo "::error::Forced-proxy list contains an invalid line"
             exit 1
           fi
 
@@ -141,7 +156,9 @@ jobs:
 
           require_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ChinaDNS_NG=y'
           require_config 'CONFIG_PACKAGE_luci-ssl-openssl=y'
           require_config 'CONFIG_PACKAGE_libustream-openssl=y'
           require_config 'CONFIG_PACKAGE_luci-theme-argon=y'
@@ -152,6 +169,7 @@ jobs:
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy=y'
           reject_config 'CONFIG_PACKAGE_luci-ssl=y'
           reject_config 'CONFIG_PACKAGE_libustream-mbedtls=y'
 
@@ -161,7 +179,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          make download -j8
+          if ! timeout --signal=TERM --kill-after=30s 20m make download -j8; then
+            echo "::warning::Parallel download failed or timed out; retrying serially with verbose logs"
+            find dl -type f -size -1024c -print -delete
+            timeout --signal=TERM --kill-after=30s 20m make download -j1 V=s
+          fi
           find dl -type f -size -1024c -print -delete
 
       - name: Compile firmware

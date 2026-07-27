@@ -1,0 +1,18 @@
+diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-rules b/luci-app-ssr-plus/root/usr/bin/ssr-rules
+index f2bd6ea..ab2d1f4 100755
+--- a/luci-app-ssr-plus/root/usr/bin/ssr-rules
++++ b/luci-app-ssr-plus/root/usr/bin/ssr-rules
+@@ -1065,6 +1065,13 @@ tp_rule_iptables() {
+ 	fi
+ 	$ipt -A SS_SPEC_TPROXY -p udp -m set --match-set bplan src -j RETURN
+ 	$ipt -A SS_SPEC_TPROXY -p udp $PROXY_PORTS -m set --match-set fplan src -j TPROXY --on-port "$LOCAL_PORT" --tproxy-mark ${FWMARK}
++	# HKC: forced proxy domains must win before the China-IP bypass. Drop
++	# HTTP/3/QUIC so affected apps retry over TCP, which is redirected by
++	# SS_SPEC_WAN_AC; proxy all other UDP for these destinations via Xray.
++	$ipt -A SS_SPEC_TPROXY -p udp -m set --match-set blacklist dst --dport 80 -j DROP
++	$ipt -A SS_SPEC_TPROXY -p udp -m set --match-set blacklist dst --dport 443 -j DROP
++	$ipt -A SS_SPEC_TPROXY -p udp -m set --match-set blacklist dst -j TPROXY --on-port "$LOCAL_PORT" --tproxy-mark ${FWMARK}
++
+ 	case "$RUNMODE" in
+ 	router)
+ 		ipset -! -R <<-EOF || return 1

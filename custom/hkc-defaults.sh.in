@@ -64,6 +64,38 @@ for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-devic
 done
 uci -q commit wireless
 
+# SSR Plus+ routing and DNS policy. Keep IP Route Mode (bypass mainland China),
+# but force selected AI/TikTok domains through the proxy even if their resolved
+# address is present in the China route table. Proxying all ports prevents apps
+# from escaping through uncommon ports; ChinaDNS-NG over TCP reduces pollution,
+# and overseas AAAA filtering prevents an IPv6 direct-routing leak.
+if ! uci -q get shadowsocksr.@global[0] >/dev/null 2>&1; then
+	uci -q add shadowsocksr global >/dev/null
+fi
+uci -q set shadowsocksr.@global[0].run_mode='router'
+uci -q set shadowsocksr.@global[0].dports='1'
+uci -q set shadowsocksr.@global[0].pdnsd_enable='6'
+uci -q set shadowsocksr.@global[0].filter_aaaa='1'
+uci -q set shadowsocksr.@global[0].chinadns_ng_proto='tcp'
+uci -q set shadowsocksr.@global[0].chinadns_ng_tunnel_forward='8.8.8.8:53'
+uci -q set shadowsocksr.@global[0].chinadns_forward='223.5.5.5:53'
+
+forced_domains='/usr/share/hkc/forced-proxy-domains.list'
+blacklist='/etc/ssrplus/black.list'
+mkdir -p /etc/ssrplus
+touch "$blacklist"
+if [ -r "$forced_domains" ]; then
+	while IFS= read -r domain || [ -n "$domain" ]; do
+		case "$domain" in
+			''|'#'*) continue ;;
+		esac
+		grep -Fqx "$domain" "$blacklist" || printf '%s\n' "$domain" >>"$blacklist"
+	done <"$forced_domains"
+else
+	echo "HKC firmware: forced proxy domain list is missing" >&2
+	exit 1
+fi
+
 # SSR Plus+ subscription policy. The URL itself is deliberately not embedded.
 # A direct first fetch avoids the bootstrap failure caused by proxying through a
 # node which does not exist until the first subscription has been downloaded.
