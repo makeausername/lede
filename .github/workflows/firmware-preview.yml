@@ -209,12 +209,15 @@ jobs:
           uhttpd_pid=$!
 
           for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8080/cgi-bin/luci/ >/dev/null; then
+            # Modern LuCI intentionally answers an unauthenticated request
+            # with HTTP 403 plus x-luci-login-required. Any HTTP response here
+            # proves that the CGI is ready for the browser login flow.
+            if curl -sS http://127.0.0.1:8080/cgi-bin/luci/ >/dev/null; then
               break
             fi
             sleep 1
           done
-          if ! curl -fsS -D preview-logs/http-headers.txt \
+          if ! curl -sS -D preview-logs/http-headers.txt \
             -o preview-logs/http-body.html \
             http://127.0.0.1:8080/cgi-bin/luci/; then
             cat preview-logs/uhttpd.log
