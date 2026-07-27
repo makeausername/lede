@@ -91,11 +91,19 @@ try {
       screenshotError = error instanceof Error ? error.message : String(error);
       screenshotMode = 'unavailable';
     }
+
+    let title = null;
+    try {
+      title = await capturePage.title();
+    } catch {
+      // A timed-out navigation can destroy the page execution context.
+    }
+
     report.push({
       name,
       route,
       status: response?.status() ?? null,
-      title: await capturePage.title(),
+      title,
       navigationError,
       screenshotMode,
       screenshotError,
