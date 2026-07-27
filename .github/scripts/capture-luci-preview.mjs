@@ -54,19 +54,31 @@ try {
 
   const pages = [
     ['01-overview', '/cgi-bin/luci/admin/status/overview'],
-    ['02-wireless', '/cgi-bin/luci/admin/network/wireless'],
-    ['03-upnp', '/cgi-bin/luci/admin/services/upnp'],
-    ['04-ssr-client', '/cgi-bin/luci/admin/services/shadowsocksr'],
-    ['05-ssr-subscription', '/cgi-bin/luci/admin/services/shadowsocksr/servers'],
+    ['02-upnp', '/cgi-bin/luci/admin/services/upnp'],
+    ['03-ssr-client', '/cgi-bin/luci/admin/services/shadowsocksr'],
+    ['04-ssr-subscription', '/cgi-bin/luci/admin/services/shadowsocksr/servers'],
+    // Hardware-backed wireless RPC calls can remain pending under QEMU, so
+    // capture this page last and never let it block the other UI evidence.
+    ['05-wireless', '/cgi-bin/luci/admin/network/wireless'],
   ];
 
   for (const [name, route] of pages) {
-    const response = await page.goto(`${baseUrl}${route}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60_000,
-    });
-    await page.waitForTimeout(2500);
-    await page.screenshot({
+    const capturePage = await context.newPage();
+    let response;
+    let navigationError = null;
+
+    try {
+      response = await capturePage.goto(`${baseUrl}${route}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 20_000,
+      });
+      await capturePage.waitForTimeout(2500);
+    } catch (error) {
+      navigationError = error instanceof Error ? error.message : String(error);
+      await capturePage.waitForTimeout(1000);
+    }
+
+    await capturePage.screenshot({
       path: path.join(outputDir, `${name}.png`),
       fullPage: true,
     });
@@ -74,8 +86,10 @@ try {
       name,
       route,
       status: response?.status() ?? null,
-      title: await page.title(),
+      title: await capturePage.title(),
+      navigationError,
     });
+    await capturePage.close();
   }
 } finally {
   fs.writeFileSync(
