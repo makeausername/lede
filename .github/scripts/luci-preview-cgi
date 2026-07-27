@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec /usr/bin/ucode /www/cgi-bin/luci.uc "$@"
