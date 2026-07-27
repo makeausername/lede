@@ -54,11 +54,11 @@ try {
 
   const pages = [
     ['01-overview', '/cgi-bin/luci/admin/status/overview'],
-    ['02-upnp', '/cgi-bin/luci/admin/services/upnp'],
-    ['03-ssr-client', '/cgi-bin/luci/admin/services/shadowsocksr'],
-    ['04-ssr-subscription', '/cgi-bin/luci/admin/services/shadowsocksr/servers'],
-    // Hardware-backed wireless RPC calls can remain pending under QEMU, so
-    // capture this page last and never let it block the other UI evidence.
+    ['02-ssr-client', '/cgi-bin/luci/admin/services/shadowsocksr'],
+    ['03-ssr-subscription', '/cgi-bin/luci/admin/services/shadowsocksr/servers'],
+    // Runtime-backed UPnP and wireless RPC calls can remain pending under
+    // QEMU, so capture them last and never let them block SSR UI evidence.
+    ['04-upnp', '/cgi-bin/luci/admin/services/upnp'],
     ['05-wireless', '/cgi-bin/luci/admin/network/wireless'],
   ];
 
@@ -66,6 +66,8 @@ try {
     const capturePage = await context.newPage();
     let response;
     let navigationError = null;
+    let screenshotError = null;
+    let screenshotMode = 'playwright';
 
     try {
       response = await capturePage.goto(`${baseUrl}${route}`, {
@@ -78,16 +80,39 @@ try {
       await capturePage.waitForTimeout(1000);
     }
 
-    await capturePage.screenshot({
-      path: path.join(outputDir, `${name}.png`),
-      fullPage: true,
-    });
+    const screenshotPath = path.join(outputDir, `${name}.png`);
+    try {
+      await capturePage.screenshot({
+        path: screenshotPath,
+        fullPage: true,
+        timeout: 5000,
+      });
+    } catch (error) {
+      screenshotError = error instanceof Error ? error.message : String(error);
+      screenshotMode = 'cdp-viewport';
+
+      try {
+        const cdp = await context.newCDPSession(capturePage);
+        const screenshot = await cdp.send('Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+          captureBeyondViewport: false,
+        });
+        fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+        await cdp.detach();
+      } catch (fallbackError) {
+        screenshotMode = 'unavailable';
+        screenshotError += `; fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`;
+      }
+    }
     report.push({
       name,
       route,
       status: response?.status() ?? null,
       title: await capturePage.title(),
       navigationError,
+      screenshotMode,
+      screenshotError,
     });
     await capturePage.close();
   }
