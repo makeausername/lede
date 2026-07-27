@@ -72,7 +72,7 @@ try {
     try {
       response = await capturePage.goto(`${baseUrl}${route}`, {
         waitUntil: 'domcontentloaded',
-        timeout: 20_000,
+        timeout: 15_000,
       });
       await capturePage.waitForTimeout(2500);
     } catch (error) {
@@ -89,21 +89,7 @@ try {
       });
     } catch (error) {
       screenshotError = error instanceof Error ? error.message : String(error);
-      screenshotMode = 'cdp-viewport';
-
-      try {
-        const cdp = await context.newCDPSession(capturePage);
-        const screenshot = await cdp.send('Page.captureScreenshot', {
-          format: 'png',
-          fromSurface: true,
-          captureBeyondViewport: false,
-        });
-        fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
-        await cdp.detach();
-      } catch (fallbackError) {
-        screenshotMode = 'unavailable';
-        screenshotError += `; fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`;
-      }
+      screenshotMode = 'unavailable';
     }
     report.push({
       name,
@@ -114,7 +100,7 @@ try {
       screenshotMode,
       screenshotError,
     });
-    await capturePage.close();
+    await capturePage.close({ runBeforeUnload: false }).catch(() => {});
   }
 } finally {
   fs.writeFileSync(
