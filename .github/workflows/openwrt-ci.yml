@@ -103,6 +103,8 @@ jobs:
             ! grep -Fq 'ArgonTheme' "$footer"
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
+          test "$(grep -Fc 'id="modemenu"' \
+            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
 
           for patch in custom/patches/helloworld/*.patch; do
             git -C feeds/helloworld apply --check "../../${patch}"
@@ -136,6 +138,8 @@ jobs:
           install -d files/etc/uci-defaults
           install -m 0755 custom/hkc-defaults.sh.in \
             files/etc/uci-defaults/zz-hkc-defaults-v3
+          install -m 0755 custom/hkc-wan-dhcp.sh \
+            files/etc/uci-defaults/zz-hkc-wan-dhcp-v1
           install -d files/usr/share/hkc
           install -m 0644 custom/forced-proxy-domains.list \
             files/usr/share/hkc/forced-proxy-domains.list
@@ -146,9 +150,16 @@ jobs:
             exit 1
           fi
           defaults='files/etc/uci-defaults/zz-hkc-defaults-v3'
+          wan_defaults='files/etc/uci-defaults/zz-hkc-wan-dhcp-v1'
           sh -n "$defaults"
+          sh -n "$wan_defaults"
+          sh custom/tests/test-hkc-wan-dhcp.sh "$wan_defaults"
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
+          grep -Fq "network.wan.device='eth1'" "$wan_defaults"
+          grep -Fq "network.wan.proto='dhcp'" "$wan_defaults"
+          grep -Fq "''|dhcp)" "$wan_defaults"
+          grep -Fq 'uci -q commit network' "$wan_defaults"
           grep -Fq 'iface="default_${radio}"' "$defaults"
           grep -Fq 'wireless.${iface}=wifi-iface' "$defaults"
           grep -Fq 'wireless.${iface}.ssid=${ssid}' "$defaults"
@@ -278,18 +289,21 @@ jobs:
           test -n "$root_image"
 
           defaults="$inspect_dir/zz-hkc-defaults-v3"
+          wan_defaults="$inspect_dir/zz-hkc-wan-dhcp-v1"
           preinit="$inspect_dir/00_preinit.conf"
           ssr_model="$inspect_dir/servers.lua"
           bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
           argon_footer="$inspect_dir/argon-footer.ut"
           argon_login_footer="$inspect_dir/argon-footer-login.ut"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-wan-dhcp-v1 >"$wan_defaults"
           unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_model"
           unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
           test -s "$defaults"
+          test -s "$wan_defaults"
           test -s "$preinit"
           test -s "$ssr_model"
           test -s "$bbr_sysctl"
@@ -298,6 +312,10 @@ jobs:
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
+          grep -Fq "network.wan.device='eth1'" "$wan_defaults"
+          grep -Fq "network.wan.proto='dhcp'" "$wan_defaults"
+          grep -Fq "''|dhcp)" "$wan_defaults"
+          grep -Fq 'uci -q commit network' "$wan_defaults"
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
           grep -Fq 'iface="default_${radio}"' "$defaults"
@@ -317,6 +335,7 @@ jobs:
             ! grep -Fq 'ArgonTheme' "$footer"
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
+          test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
