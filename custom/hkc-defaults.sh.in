@@ -17,6 +17,19 @@ uci -q set network.lan.ipaddr='192.168.8.1'
 uci -q set network.lan.netmask='255.255.255.0'
 uci -q set luci.main.lang='auto'
 uci -q set luci.main.mediaurlbase='/luci-static/argon'
+
+# N60 Pro / MT7986A tuning. Packet steering spreads network processing across
+# the available CPU cores. Keep FullCone disabled because secure UPnP covers
+# gaming NAT traversal and FullCone would broaden unsolicited UDP reachability.
+if ! uci -q get network.globals >/dev/null 2>&1; then
+	uci -q set network.globals='globals'
+fi
+uci -q set network.globals.packet_steering='1'
+if uci -q get firewall.@defaults[0] >/dev/null 2>&1; then
+	uci -q set firewall.@defaults[0].fullcone='0'
+	uci -q commit firewall
+fi
+
 uci -q commit system
 uci -q commit network
 uci -q commit luci
@@ -57,7 +70,10 @@ for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-devic
 	uci -q set "wireless.${radio}.channel=auto"
 	uci -q set "wireless.${radio}.htmode=${htmode}"
 
-	iface="$(uci -q add wireless wifi-iface)"
+	# LuCI requires named wifi-iface sections. Anonymous sections trigger the
+	# one-time "Wireless configuration migration" prompt on first entry.
+	iface="default_${radio}"
+	uci -q set "wireless.${iface}=wifi-iface"
 	uci -q set "wireless.${iface}.device=${radio}"
 	uci -q set "wireless.${iface}.network=lan"
 	uci -q set "wireless.${iface}.mode=ap"

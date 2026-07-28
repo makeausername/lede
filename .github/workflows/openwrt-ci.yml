@@ -122,21 +122,27 @@ jobs:
 
           install -d files/etc/uci-defaults
           install -m 0755 custom/hkc-defaults.sh.in \
-            files/etc/uci-defaults/zz-hkc-defaults-v2
+            files/etc/uci-defaults/zz-hkc-defaults-v3
           install -d files/usr/share/hkc
           install -m 0644 custom/forced-proxy-domains.list \
             files/usr/share/hkc/forced-proxy-domains.list
           sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
-            files/etc/uci-defaults/zz-hkc-defaults-v2
-          if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults-v2; then
+            files/etc/uci-defaults/zz-hkc-defaults-v3
+          if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults-v3; then
             echo "::error::Wi-Fi password placeholder was not replaced"
             exit 1
           fi
-          sh -n files/etc/uci-defaults/zz-hkc-defaults-v2
-          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" files/etc/uci-defaults/zz-hkc-defaults-v2
-          grep -Fq "network.lan.ipaddr='192.168.8.1'" files/etc/uci-defaults/zz-hkc-defaults-v2
-          grep -Fq 'wireless.${iface}.ssid=${ssid}' files/etc/uci-defaults/zz-hkc-defaults-v2
-          grep -Fq "upnpd.config.secure_mode='1'" files/etc/uci-defaults/zz-hkc-defaults-v2
+          defaults='files/etc/uci-defaults/zz-hkc-defaults-v3'
+          sh -n "$defaults"
+          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
+          grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
+          grep -Fq 'iface="default_${radio}"' "$defaults"
+          grep -Fq 'wireless.${iface}=wifi-iface' "$defaults"
+          grep -Fq 'wireless.${iface}.ssid=${ssid}' "$defaults"
+          ! grep -Fq 'uci -q add wireless wifi-iface' "$defaults"
+          grep -Fq "network.globals.packet_steering='1'" "$defaults"
+          grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
+          grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -185,6 +191,7 @@ jobs:
           require_config 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y'
           require_config 'CONFIG_PACKAGE_wpad-openssl=y'
+          require_config 'CONFIG_PACKAGE_kmod-tcp-bbr=y'
           require_config 'CONFIG_PACKAGE_luci-app-upnp=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y'
           require_config 'CONFIG_PACKAGE_miniupnpd-iptables=y'
@@ -247,6 +254,7 @@ jobs:
           grep -Eq '^luci-app-upnp ' "$manifest"
           grep -Eq '^luci-i18n-upnp-zh-cn ' "$manifest"
           grep -Eq '^miniupnpd-iptables ' "$manifest"
+          grep -Eq '^kmod-tcp-bbr ' "$manifest"
           ! grep -Eq '^(luci-app-wol|luci-i18n-wol-zh-cn) ' "$manifest"
           ! grep -Eq '^(mihomo|mosdns|shadowsocksr-libev-|3proxy) ' "$manifest"
 
@@ -256,22 +264,31 @@ jobs:
           root_image="$(find "$inspect_dir" -type f -name root -print -quit)"
           test -n "$root_image"
 
-          defaults="$inspect_dir/zz-hkc-defaults-v2"
+          defaults="$inspect_dir/zz-hkc-defaults-v3"
           preinit="$inspect_dir/00_preinit.conf"
           ssr_model="$inspect_dir/servers.lua"
-          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v2 >"$defaults"
+          bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
           unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_model"
+          unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
           test -s "$defaults"
           test -s "$preinit"
           test -s "$ssr_model"
+          test -s "$bbr_sysctl"
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq 'iface="default_${radio}"' "$defaults"
+          grep -Fq 'wireless.${iface}=wifi-iface' "$defaults"
+          ! grep -Fq 'uci -q add wireless wifi-iface' "$defaults"
           grep -Fq 'wireless.${iface}.encryption=sae-mixed' "$defaults"
+          grep -Fq "network.globals.packet_steering='1'" "$defaults"
+          grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
+          grep -Fqx 'net.ipv4.tcp_congestion_control=bbr' "$bbr_sysctl"
           grep -Fq 'pi_ip="192.168.8.1"' "$preinit"
           grep -Fq 's.template = "cbi/tblsection"' "$ssr_model"
           ! grep -Fq 's.template = "shadowsocksr/subscribe_actions_footer"' "$ssr_model"
