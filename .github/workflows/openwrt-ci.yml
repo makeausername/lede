@@ -182,6 +182,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          gpy_patch='target/linux/mediatek/patches-6.12/732-net-phy-mxl-gpy-don-t-use-SGMII-AN-if-using-phylink.patch'
+          test -s "$gpy_patch"
+          grep -Fq "Subject: [PATCH] net: phy: mxl-gpy: don't use SGMII AN if using phylink" "$gpy_patch"
+          grep -Fq 'Disable SGMII auto-negotiation if using phylink' "$gpy_patch"
+          grep -Fq 'if (phydev->phylink || gpy_sgmii_aneg_en(phydev))' "$gpy_patch"
+
           cp configs/hkc-n60-pro.config .config
           make defconfig
 
