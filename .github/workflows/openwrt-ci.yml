@@ -120,6 +120,11 @@ jobs:
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
           ! grep -Fq 'servers_subscribe_url_style' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          ssr_init='feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr'
+          grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
+          grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
+          grep -Fq 'rolling back proxy DNS integration to protect LAN DHCP' "$ssr_init"
+          grep -Fq 'remove_ssr_dnsmasq_config' "$ssr_init"
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -301,6 +306,7 @@ jobs:
           bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
           argon_footer="$inspect_dir/argon-footer.ut"
           argon_login_footer="$inspect_dir/argon-footer-login.ut"
+          ssr_init="$inspect_dir/shadowsocksr-init"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-wan-dhcp-v1 >"$wan_defaults"
           unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
@@ -308,6 +314,7 @@ jobs:
           unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
+          unsquashfs -cat "$root_image" etc/init.d/shadowsocksr >"$ssr_init"
           test -s "$defaults"
           test -s "$wan_defaults"
           test -s "$preinit"
@@ -315,6 +322,7 @@ jobs:
           test -s "$bbr_sysctl"
           test -s "$argon_footer"
           test -s "$argon_login_footer"
+          test -s "$ssr_init"
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
@@ -342,6 +350,8 @@ jobs:
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
           test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
+          grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
+          grep -Fq 'rolling back proxy DNS integration to protect LAN DHCP' "$ssr_init"
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 

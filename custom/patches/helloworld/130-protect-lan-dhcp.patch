@@ -1,0 +1,65 @@
+diff --git a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+index b1362f6..f8f4712 100755
+--- a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
++++ b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+@@ -2906,6 +2906,51 @@ rules() {
+ 		return $?
+ 	}
+ 
++remove_ssr_dnsmasq_config() {
++	# dnsmasq also provides LAN DHCP. Remove only the SSR Plus include files so
++	# a bad proxy DNS configuration can never prevent clients obtaining an IP.
++	rm -f "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf"
++	rm -rf "$TMP_DNSMASQ_PATH"
++}
++
++dnsmasq_is_running() {
++	pidof dnsmasq >/dev/null 2>&1
++}
++
++restart_dnsmasq_safely() {
++	local dnsmasq_config
++
++	dnsmasq_config="/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID"
++	if [ -z "$DEFAULT_DNSMASQ_CFGID" ] || [ ! -s "$dnsmasq_config" ] || \
++		! dnsmasq --test --conf-file="$dnsmasq_config" >/dev/null 2>&1; then
++		echolog "SSR Plus DNS configuration validation failed; restoring base dnsmasq to protect LAN DHCP."
++		remove_ssr_dnsmasq_config
++		/etc/init.d/dnsmasq restart >/dev/null 2>&1
++		sleep 2
++		if ! dnsmasq_is_running; then
++			echolog "ERROR: base dnsmasq failed to restart; LAN DHCP requires attention."
++		fi
++		return 1
++	fi
++
++	/etc/init.d/dnsmasq restart >/dev/null 2>&1
++	sleep 2
++	if dnsmasq_is_running; then
++		return 0
++	fi
++
++	# Some failures (for example a missing runtime ipset) are not detected by
++	# dnsmasq --test. Roll back the SSR include and immediately restore DHCP.
++	echolog "SSR Plus caused dnsmasq to exit; rolling back proxy DNS integration to protect LAN DHCP."
++	remove_ssr_dnsmasq_config
++	/etc/init.d/dnsmasq restart >/dev/null 2>&1
++	sleep 2
++	if ! dnsmasq_is_running; then
++		echolog "ERROR: base dnsmasq failed to restart; LAN DHCP requires attention."
++	fi
++	return 1
++}
++
+ start() {
+ 	local run_mode
+ 	local CURRENT_SERVER
+@@ -2990,7 +3035,7 @@ start() {
+ 		fi
+ 		start_http_proxy
+ 	fi
+-	/etc/init.d/dnsmasq restart >/dev/null 2>&1
++	restart_dnsmasq_safely
+ 	check_server
+ 	if [ "$USE_TABLES" = "nftables" ]; then
+ 		CURRENT_SERVER="$(uci_get_by_type global global_server nil)"
