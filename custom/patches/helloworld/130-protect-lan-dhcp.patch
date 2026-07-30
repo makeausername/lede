@@ -1,8 +1,32 @@
 diff --git a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
-index b1362f6..f8f4712 100755
+index 951a26e..300b9df 100755
 --- a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
 +++ b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
-@@ -2906,6 +2906,51 @@ rules() {
+@@ -82,9 +82,10 @@ DNSMASQ_NFTSET=0
+ 
+ switch_server=$1
+ CRON_FILE=/etc/crontabs/root
+-EXTRA_COMMANDS='reset clash_cache'
++EXTRA_COMMANDS='reset clash_cache failopen'
+ EXTRA_HELP="        reset        Reset to default settings
+-        clash_cache  Download and cache Clash node config"
++        clash_cache  Download and cache Clash node config
++        failopen     Disable proxy interception and restore direct networking"
+ #extra_command "reset" "Reset to default settings"
+ PS="/bin/busybox ps"
+ 
+@@ -2278,6 +2279,10 @@ Start_Run() {
+ 			xray_bin="$(first_type xray)"
+ 			if [ -n "$xray_bin" ]; then
+ 				gen_config_file "$GLOBAL_SERVER" "$type" 1 "$tcp_port" "$socks_port"
++				if ! "$xray_bin" run -test -c "$tcp_config_file" >/dev/null 2>&1; then
++					echolog "Main node:Xray configuration validation failed."
++					return 1
++				fi
+ 				ln_start_bin "$(first_type xray)" v2ray run -c "$tcp_config_file"
+ 				echolog "Main node:$($(first_type xray) version | head -1) Started!"
+ 			else
+@@ -2906,6 +2911,108 @@ start_rules() {
  		return $?
  	}
  
@@ -13,8 +37,77 @@ index b1362f6..f8f4712 100755
 +	rm -rf "$TMP_DNSMASQ_PATH"
 +}
 +
++restore_base_dnsmasq_settings() {
++	if [ "$(uci -q get "dhcp.@dnsmasq[0]._unused_ssrp_changed")" = "1" ]; then
++		uci -q del "dhcp.@dnsmasq[0].noresolv"
++		uci -q del_list "dhcp.@dnsmasq[0].server"="127.0.0.1#$china_dns_port"
++		uci -q rename "dhcp.@dnsmasq[0]._orig_noresolv"="noresolv"
++		uci -q rename "dhcp.@dnsmasq[0]._orig_server"="server"
++		uci -q del "dhcp.@dnsmasq[0]._unused_ssrp_changed"
++		uci -q commit dhcp
++	fi
++}
++
 +dnsmasq_is_running() {
 +	pidof dnsmasq >/dev/null 2>&1
++}
++
++restart_base_dnsmasq() {
++	/etc/init.d/dnsmasq restart >/dev/null 2>&1
++	sleep 2
++	dnsmasq_is_running
++}
++
++enter_fail_open() {
++	local reason="${1:-proxy health check failed}"
++
++	echolog "FAIL-OPEN: ${reason}; removing proxy interception and restoring direct networking."
++	/usr/bin/ssr-rules -f >/dev/null 2>&1 || true
++	ps_list | grep -v grep | grep "$TMP_PATH" | awk '{print $1}' | xargs kill >/dev/null 2>&1
++	restore_base_dnsmasq_settings
++	remove_ssr_dnsmasq_config
++	touch /var/run/ssrplus.fail-open
++	if restart_base_dnsmasq; then
++		echolog "FAIL-OPEN: base dnsmasq and LAN DHCP are running; domestic traffic is direct."
++		return 0
++	fi
++	echolog "ERROR: base dnsmasq failed to restart; LAN DHCP requires attention."
++	return 1
++}
++
++main_proxy_runtime_healthy() {
++	local attempt=0
++
++	[ "$redir_tcp" -gt 0 ] || return 0
++	[ -n "$tcp_config_file" ] || return 1
++	while [ "$attempt" -lt 5 ]; do
++		if ps_list | grep -F "$tcp_config_file" | grep -v grep >/dev/null 2>&1; then
++			return 0
++		fi
++		attempt=$((attempt + 1))
++		sleep 1
++	done
++	return 1
++}
++
++proxy_path_healthy() {
++	# Both names are in the forced-proxy list, so this checks the real Xray,
++	# transparent-proxy and DNS path instead of a direct TCP socket only.
++	curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
++		'https://chatgpt.com/favicon.ico' >/dev/null 2>&1 || \
++		curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
++			'https://claude.ai/favicon.ico' >/dev/null 2>&1
++}
++
++wait_for_proxy_path() {
++	local attempt=0
++
++	while [ "$attempt" -lt 3 ]; do
++		proxy_path_healthy && return 0
++		attempt=$((attempt + 1))
++		sleep 5
++	done
++	return 1
 +}
 +
 +restart_dnsmasq_safely() {
@@ -23,13 +116,7 @@ index b1362f6..f8f4712 100755
 +	dnsmasq_config="/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID"
 +	if [ -z "$DEFAULT_DNSMASQ_CFGID" ] || [ ! -s "$dnsmasq_config" ] || \
 +		! dnsmasq --test --conf-file="$dnsmasq_config" >/dev/null 2>&1; then
-+		echolog "SSR Plus DNS configuration validation failed; restoring base dnsmasq to protect LAN DHCP."
-+		remove_ssr_dnsmasq_config
-+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
-+		sleep 2
-+		if ! dnsmasq_is_running; then
-+			echolog "ERROR: base dnsmasq failed to restart; LAN DHCP requires attention."
-+		fi
++		enter_fail_open "SSR Plus DNS configuration validation failed"
 +		return 1
 +	fi
 +
@@ -41,25 +128,273 @@ index b1362f6..f8f4712 100755
 +
 +	# Some failures (for example a missing runtime ipset) are not detected by
 +	# dnsmasq --test. Roll back the SSR include and immediately restore DHCP.
-+	echolog "SSR Plus caused dnsmasq to exit; rolling back proxy DNS integration to protect LAN DHCP."
-+	remove_ssr_dnsmasq_config
-+	/etc/init.d/dnsmasq restart >/dev/null 2>&1
-+	sleep 2
-+	if ! dnsmasq_is_running; then
-+		echolog "ERROR: base dnsmasq failed to restart; LAN DHCP requires attention."
-+	fi
++	enter_fail_open "SSR Plus caused dnsmasq to exit"
 +	return 1
 +}
 +
  start() {
  	local run_mode
  	local CURRENT_SERVER
-@@ -2990,7 +3035,7 @@ start() {
+@@ -2924,11 +3031,26 @@ start() {
+ 	run_mode="$(normalize_run_mode)"
+ 
+ 	if load_config; then
+-		Start_Run
++		if ! Start_Run || ! main_proxy_runtime_healthy; then
++			enter_fail_open "main proxy failed to start"
++			clean_log
++			unset_lock
++			return 1
++		fi
+ 		start_http_proxy
+ 		start_xhttp_addr
+-		start_rules
+-		start_dns
++		if ! start_rules; then
++			enter_fail_open "transparent proxy rules failed to load"
++			clean_log
++			unset_lock
++			return 1
++		fi
++		if ! start_dns; then
++			enter_fail_open "proxy DNS failed to start"
++			clean_log
++			unset_lock
++			return 1
++		fi
+ 		# Restore ipsets after rules creation
+ 		if [ "$HAS_IPSET" -eq 1 ]; then
+ 			for setname in gfwlist china blacklist whitelist; do
+@@ -2990,7 +3112,18 @@ start() {
  		fi
  		start_http_proxy
  	fi
 -	/etc/init.d/dnsmasq restart >/dev/null 2>&1
-+	restart_dnsmasq_safely
++	if ! restart_dnsmasq_safely; then
++		clean_log
++		unset_lock
++		return 1
++	fi
++	if [ "$GLOBAL_SERVER" != "nil" ] && ! wait_for_proxy_path; then
++		enter_fail_open "initial end-to-end proxy health check failed"
++		clean_log
++		unset_lock
++		return 1
++	fi
++	rm -f /var/run/ssrplus.fail-open
  	check_server
  	if [ "$USE_TABLES" = "nftables" ]; then
  		CURRENT_SERVER="$(uci_get_by_type global global_server nil)"
+@@ -3102,14 +3235,7 @@ stop() {
+ 		)
+ 	killall -q -9 v2ray-plugin obfs-local xray-plugin shadow-tls
+ 	rm -f /var/lock/ssr-monitor.lock
+-	if [ "$(uci -q get "dhcp.@dnsmasq[0]._unused_ssrp_changed")" = "1" ]; then
+-		uci -q del "dhcp.@dnsmasq[0].noresolv"
+-		uci -q del_list "dhcp.@dnsmasq[0].server"="127.0.0.1#$china_dns_port"
+-		uci -q rename "dhcp.@dnsmasq[0]._orig_noresolv"="noresolv"
+-		uci -q rename "dhcp.@dnsmasq[0]._orig_server"="server"
+-		uci -q del "dhcp.@dnsmasq[0]._unused_ssrp_changed"
+-		uci -q commit "dhcp"
+-	fi
++	restore_base_dnsmasq_settings
+ 	if [ -f "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" ]; then
+ 		rm -rf "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" \
+ 			"$TMP_DNSMASQ_PATH" \
+@@ -3128,6 +3254,12 @@ stop() {
+ 	unset_lock
+ }
+ 
++failopen() {
++	echolog "FAIL-OPEN requested after repeated SSR Plus health failures."
++	stop
++	touch /var/run/ssrplus.fail-open
++}
++
+ reset() {
+ 	stop
+ 	set_lock
+diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-monitor b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+index 608a4f3..b8c7410 100755
+--- a/luci-app-ssr-plus/root/usr/bin/ssr-monitor
++++ b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+@@ -62,6 +62,40 @@ get_expected_threads() {
+ 	echo "$threads"
+ }
+ 
++FAIL_STATE_FILE="/tmp/ssrplus-monitor.failures"
++MAX_CONSECUTIVE_FAILURES=3
++
++recover_or_fail_open() {
++	local reason="$1"
++	local failures
++
++	failures=$(cat "$FAIL_STATE_FILE" 2>/dev/null)
++	case "$failures" in
++		''|*[!0-9]*) failures=0 ;;
++	esac
++	failures=$((failures + 1))
++	printf '%s\n' "$failures" >"$FAIL_STATE_FILE"
++
++	if [ "$failures" -ge "$MAX_CONSECUTIVE_FAILURES" ]; then
++		logger -t "$NAME" "FAIL-OPEN after ${failures} consecutive failures: ${reason}"
++		echolog "FAIL-OPEN after ${failures} consecutive failures: ${reason}"
++		rm -f "$FAIL_STATE_FILE"
++		/etc/init.d/shadowsocksr failopen
++		exit 0
++	fi
++
++	logger -t "$NAME" "health failure ${failures}/${MAX_CONSECUTIVE_FAILURES}: ${reason}; restarting"
++	/etc/init.d/shadowsocksr restart
++	exit 0
++}
++
++proxy_path_healthy() {
++	curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
++		'https://chatgpt.com/favicon.ico' >/dev/null 2>&1 || \
++		curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
++			'https://claude.ai/favicon.ico' >/dev/null 2>&1
++}
++
+ server_process_count=$1
+ redir_tcp_process=$2
+ redir_udp_process=$3
+@@ -84,6 +118,9 @@ kcp_param=$(uci_get_by_name $GLOBAL_SERVER kcp_param)
+ 
+ while [ "1" == "1" ]; do #死循环
+ 	sleep 000030s
++	if ! pidof dnsmasq >/dev/null 2>&1; then
++		recover_or_fail_open "dnsmasq and LAN DHCP are unavailable"
++	fi
+ 	#redir tcp
+ 	if [ "$redir_tcp_process" -gt 0 ]; then
+ 		icount=$(redir_tcp_running)
+@@ -94,8 +131,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt "$tcp_expected" ]; then
+ 			logger -t "$NAME" "ssrplus redir tcp error.restart!"
+ 			echolog "ssrplus redir tcp error.restart!"
+-			/etc/init.d/shadowsocksr restart
+-			exit 0
++			recover_or_fail_open "main TCP proxy process is missing"
+ 		fi
+ 	fi
+ 	#redir udp
+@@ -108,8 +144,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt "$udp_expected" ]; then
+ 			logger -t "$NAME" "ssrplus redir udp error.restart!"
+ 			echolog "ssrplus redir udp error.restart!"
+-			/etc/init.d/shadowsocksr restart
+-			exit 0
++			recover_or_fail_open "main UDP proxy process is missing"
+ 		fi
+ 	fi
+ 	#server
+@@ -119,8 +154,7 @@ while [ "1" == "1" ]; do #死循环
+ 			logger -t "$NAME" "ssrplus server error.restart!"
+ 			echolog "ssrplus server error.restart!"
+ 			kill_matched_procs 'ssr-server|ss-server-'
+-			/etc/init.d/shadowsocksr restart
+-			exit 0
++			recover_or_fail_open "SSR server process is missing"
+ 		fi
+ 	fi
+ 	#kcptun
+@@ -140,8 +174,7 @@ while [ "1" == "1" ]; do #死循环
+ 			logger -t "$NAME" "global socks server error.restart!"
+ 			echolog "global socks server error.restart!"
+ 			kill_matched_procs 'ssr-local|ss-local|tuic-local'
+-			/etc/init.d/shadowsocksr restart
+-			exit 0
++			recover_or_fail_open "local SOCKS proxy process is missing"
+ 		fi
+ 	fi
+ 	#dns2tcp
+@@ -150,9 +183,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
+ 			logger -t "$NAME" "dns2tcp tunnel error.restart!"
+ 			echolog "dns2tcp tunnel error.restart!"
+-			dnsserver=$(uci_get_by_type global tunnel_forward 8.8.4.4:53)
+-			kill -9 $(ps_list | grep $TMP_BIN_PATH/dns2tcp | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+-			start_dns2tcp "$dnsserver"
++			recover_or_fail_open "dns2tcp proxy DNS process is missing"
+ 		fi
+ 	#mosdns
+ 	elif [ "$pdnsd_process" -eq 4 ]; then
+@@ -160,9 +191,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
+ 			logger -t "$NAME" "mosdns tunnel error.restart!"
+ 			echolog "mosdns tunnel error.restart!"
+-			dnsserver=$(uci_get_by_type global tunnel_forward 8.8.4.4:53)
+-			kill -9 $(ps_list | grep $TMP_BIN_PATH/mosdns | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+-			ln_start_bin $(first_type mosdns) mosdns start -c /etc/mosdns/config.yaml
++			recover_or_fail_open "MosDNS proxy DNS process is missing"
+ 		fi
+ 	#chinadns-ng(proxy)
+ 	elif [ "$pdnsd_process" -eq 6 ]; then
+@@ -170,58 +199,30 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
+ 			logger -t "$NAME" "chinadns-ng $dnsserver tunnel error.restart!"
+ 			echolog "chinadns-ng $dnsserver tunnel error.restart!"
+-			dnsserver=$(uci_get_by_type global chinadns_ng_tunnel_forward 8.8.4.4:53)
+-			kill -9 $(ps_list | grep "chinadns-ng -b 127.0.0.1 -l $tmp_dns_port" | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+-			local chinadns_ng_proto="$(uci_get_by_type global chinadns_ng_proto)"
+-			local chinadns_ng_dns=""
+-			IFS=','
+-			for chinadns_ng_server in $dnsserver; do
+-				local chinadns_ng_ip="${chinadns_ng_server%%:*}"
+-				local chinadns_ng_port="${chinadns_ng_server##*:}"
+-				[ "$chinadns_ng_ip" = "$chinadns_ng_port" ] && chinadns_ng_port="53"
+-				chinadns_ng_tls_port="853"
+-				case "$chinadns_ng_proto" in
+-					"none")
+-						chinadns_ng_server="${chinadns_ng_ip}#${chinadns_ng_port}"
+-						;;
+-					"tls")
+-						chinadns_ng_server="${chinadns_ng_proto}://${chinadns_ng_ip}#${chinadns_ng_tls_port}"
+-						;;
+-					*)
+-						chinadns_ng_server="${chinadns_ng_proto}://${chinadns_ng_ip}#${chinadns_ng_port}"
+-						;;
+-				esac
+-					chinadns_ng_dns="${chinadns_ng_dns} -t ${chinadns_ng_server}"
+-			done
+-			unset IFS
+-			dnsserver="$chinadns_ng_dns"
+-			ln_start_bin $(first_type chinadns-ng) chinadns-ng -b 127.0.0.1 -l $tmp_dns_port -l $dns_port -p 3 -d gfw $dnsserver -N --filter-qtype 64,65 -f -r --cache 4096 --cache-stale 86400 --cache-refresh 20
++			recover_or_fail_open "ChinaDNS-NG proxy DNS process is missing"
+ 		fi
+ 	#built-in dns
+ 	elif [ "$pdnsd_process" -eq 7 ]; then
+ 		if ! is_builtin_dns_active; then
+ 			logger -t "$NAME" "builtin dns error.restart!"
+ 			echolog "builtin dns error.restart!"
+-			/etc/init.d/shadowsocksr restart
+-			exit 0
++			recover_or_fail_open "built-in proxy DNS is unavailable"
+ 		fi
+ 	fi
+ 	#chinadns-ng(china)
+ 	if [ "$(uci -q get "dhcp.@dnsmasq[0]._unused_ssrp_changed")" = "1" ]; then
+ 		chinadns=$(uci_get_by_type global chinadns_forward)
+ 		if [ -n "$chinadns" ] && [ "$chinadns" != "none" ]; then
+-			icount=$(ps_list | grep $TMP_BIN_PATH/chinadns-ng | grep -v grep | wc -l)
++			icount=$(ps_list | grep "$TMP_BIN_PATH/chinadns-ng" | grep " -l $china_dns_port" | grep -v grep | wc -l)
+ 			if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
+ 				logger -t "$NAME" "chinadns-ng tunnel error.restart!"
+ 				echolog "chinadns-ng tunnel error.restart!"
+-				wandns="$(ifstatus wan | jsonfilter -e '@["dns-server"][0]' || echo "119.29.29.29")"
+-				case "$chinadns" in
+-				"wan") chinadns="$wandns" ;;
+-				""|"wan_114") chinadns="$wandns,114.114.114.114" ;;
+-				esac
+-				kill -9 $(ps_list | grep $TMP_BIN_PATH/chinadns-ng | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+-				ln_start_bin $(first_type chinadns-ng) chinadns-ng -l $china_dns_port -4 china -p 3 -c ${chinadns/:/#} -t 127.0.0.1#$dns_port -N -f -r
++				recover_or_fail_open "ChinaDNS-NG domestic DNS process is missing"
+ 			fi
+ 		fi
+ 	fi
++	if ! proxy_path_healthy; then
++		recover_or_fail_open "end-to-end forced-proxy path is unavailable"
++	fi
++	rm -f "$FAIL_STATE_FILE"
+ done

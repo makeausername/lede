@@ -121,10 +121,21 @@ jobs:
           ! grep -Fq 'servers_subscribe_url_style' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
           ssr_init='feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr'
+          ssr_monitor='feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor'
+          sh -n "$ssr_init"
+          sh -n "$ssr_monitor"
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
           grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
-          grep -Fq 'rolling back proxy DNS integration to protect LAN DHCP' "$ssr_init"
-          grep -Fq 'remove_ssr_dnsmasq_config' "$ssr_init"
+          grep -Fq 'if ! Start_Run || ! main_proxy_runtime_healthy; then' "$ssr_init"
+          grep -Fq 'if ! start_rules; then' "$ssr_init"
+          grep -Fq 'if ! start_dns; then' "$ssr_init"
+          grep -Fq 'run -test -c "$tcp_config_file"' "$ssr_init"
+          grep -Fq 'enter_fail_open' "$ssr_init"
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
+          grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
+          grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
+          grep -Fq 'end-to-end forced-proxy path is unavailable' "$ssr_monitor"
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -307,6 +318,7 @@ jobs:
           argon_footer="$inspect_dir/argon-footer.ut"
           argon_login_footer="$inspect_dir/argon-footer-login.ut"
           ssr_init="$inspect_dir/shadowsocksr-init"
+          ssr_monitor="$inspect_dir/ssr-monitor"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-wan-dhcp-v1 >"$wan_defaults"
           unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
@@ -315,6 +327,7 @@ jobs:
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
           unsquashfs -cat "$root_image" etc/init.d/shadowsocksr >"$ssr_init"
+          unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
           test -s "$defaults"
           test -s "$wan_defaults"
           test -s "$preinit"
@@ -323,6 +336,7 @@ jobs:
           test -s "$argon_footer"
           test -s "$argon_login_footer"
           test -s "$ssr_init"
+          test -s "$ssr_monitor"
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
@@ -350,8 +364,14 @@ jobs:
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
           test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
+          sh -n "$ssr_init"
+          sh -n "$ssr_monitor"
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
-          grep -Fq 'rolling back proxy DNS integration to protect LAN DHCP' "$ssr_init"
+          grep -Fq 'enter_fail_open' "$ssr_init"
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
+          grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
+          grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
