@@ -1,5 +1,5 @@
 diff --git a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
-index 951a26e..300b9df 100755
+index 951a26e..4440289 100755
 --- a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
 +++ b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
 @@ -82,9 +82,10 @@ DNSMASQ_NFTSET=0
@@ -26,7 +26,7 @@ index 951a26e..300b9df 100755
  				ln_start_bin "$(first_type xray)" v2ray run -c "$tcp_config_file"
  				echolog "Main node:$($(first_type xray) version | head -1) Started!"
  			else
-@@ -2906,6 +2911,108 @@ start_rules() {
+@@ -2906,6 +2911,88 @@ start_rules() {
  		return $?
  	}
  
@@ -90,26 +90,6 @@ index 951a26e..300b9df 100755
 +	return 1
 +}
 +
-+proxy_path_healthy() {
-+	# Both names are in the forced-proxy list, so this checks the real Xray,
-+	# transparent-proxy and DNS path instead of a direct TCP socket only.
-+	curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
-+		'https://chatgpt.com/favicon.ico' >/dev/null 2>&1 || \
-+		curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
-+			'https://claude.ai/favicon.ico' >/dev/null 2>&1
-+}
-+
-+wait_for_proxy_path() {
-+	local attempt=0
-+
-+	while [ "$attempt" -lt 3 ]; do
-+		proxy_path_healthy && return 0
-+		attempt=$((attempt + 1))
-+		sleep 5
-+	done
-+	return 1
-+}
-+
 +restart_dnsmasq_safely() {
 +	local dnsmasq_config
 +
@@ -135,7 +115,7 @@ index 951a26e..300b9df 100755
  start() {
  	local run_mode
  	local CURRENT_SERVER
-@@ -2924,11 +3031,26 @@ start() {
+@@ -2924,11 +3011,26 @@ start() {
  	run_mode="$(normalize_run_mode)"
  
  	if load_config; then
@@ -165,7 +145,7 @@ index 951a26e..300b9df 100755
  		# Restore ipsets after rules creation
  		if [ "$HAS_IPSET" -eq 1 ]; then
  			for setname in gfwlist china blacklist whitelist; do
-@@ -2990,7 +3112,18 @@ start() {
+@@ -2990,7 +3092,12 @@ start() {
  		fi
  		start_http_proxy
  	fi
@@ -175,17 +155,11 @@ index 951a26e..300b9df 100755
 +		unset_lock
 +		return 1
 +	fi
-+	if [ "$GLOBAL_SERVER" != "nil" ] && ! wait_for_proxy_path; then
-+		enter_fail_open "initial end-to-end proxy health check failed"
-+		clean_log
-+		unset_lock
-+		return 1
-+	fi
 +	rm -f /var/run/ssrplus.fail-open
  	check_server
  	if [ "$USE_TABLES" = "nftables" ]; then
  		CURRENT_SERVER="$(uci_get_by_type global global_server nil)"
-@@ -3102,14 +3235,7 @@ stop() {
+@@ -3102,14 +3209,7 @@ stop() {
  		)
  	killall -q -9 v2ray-plugin obfs-local xray-plugin shadow-tls
  	rm -f /var/lock/ssr-monitor.lock
@@ -201,7 +175,7 @@ index 951a26e..300b9df 100755
  	if [ -f "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" ]; then
  		rm -rf "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" \
  			"$TMP_DNSMASQ_PATH" \
-@@ -3128,6 +3254,12 @@ stop() {
+@@ -3128,6 +3228,12 @@ stop() {
  	unset_lock
  }
  
@@ -215,10 +189,10 @@ index 951a26e..300b9df 100755
  	stop
  	set_lock
 diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-monitor b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
-index 608a4f3..b8c7410 100755
+index 608a4f3..77fb77e 100755
 --- a/luci-app-ssr-plus/root/usr/bin/ssr-monitor
 +++ b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
-@@ -62,6 +62,40 @@ get_expected_threads() {
+@@ -62,6 +62,33 @@ get_expected_threads() {
  	echo "$threads"
  }
  
@@ -249,17 +223,10 @@ index 608a4f3..b8c7410 100755
 +	exit 0
 +}
 +
-+proxy_path_healthy() {
-+	curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
-+		'https://chatgpt.com/favicon.ico' >/dev/null 2>&1 || \
-+		curl -4 -sS --connect-timeout 3 --max-time 6 -o /dev/null \
-+			'https://claude.ai/favicon.ico' >/dev/null 2>&1
-+}
-+
  server_process_count=$1
  redir_tcp_process=$2
  redir_udp_process=$3
-@@ -84,6 +118,9 @@ kcp_param=$(uci_get_by_name $GLOBAL_SERVER kcp_param)
+@@ -84,6 +111,9 @@ kcp_param=$(uci_get_by_name $GLOBAL_SERVER kcp_param)
  
  while [ "1" == "1" ]; do #死循环
  	sleep 000030s
@@ -269,7 +236,7 @@ index 608a4f3..b8c7410 100755
  	#redir tcp
  	if [ "$redir_tcp_process" -gt 0 ]; then
  		icount=$(redir_tcp_running)
-@@ -94,8 +131,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -94,8 +124,7 @@ while [ "1" == "1" ]; do #死循环
  		if [ "$icount" -lt "$tcp_expected" ]; then
  			logger -t "$NAME" "ssrplus redir tcp error.restart!"
  			echolog "ssrplus redir tcp error.restart!"
@@ -279,7 +246,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	fi
  	#redir udp
-@@ -108,8 +144,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -108,8 +137,7 @@ while [ "1" == "1" ]; do #死循环
  		if [ "$icount" -lt "$udp_expected" ]; then
  			logger -t "$NAME" "ssrplus redir udp error.restart!"
  			echolog "ssrplus redir udp error.restart!"
@@ -289,7 +256,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	fi
  	#server
-@@ -119,8 +154,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -119,8 +147,7 @@ while [ "1" == "1" ]; do #死循环
  			logger -t "$NAME" "ssrplus server error.restart!"
  			echolog "ssrplus server error.restart!"
  			kill_matched_procs 'ssr-server|ss-server-'
@@ -299,7 +266,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	fi
  	#kcptun
-@@ -140,8 +174,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -140,8 +167,7 @@ while [ "1" == "1" ]; do #死循环
  			logger -t "$NAME" "global socks server error.restart!"
  			echolog "global socks server error.restart!"
  			kill_matched_procs 'ssr-local|ss-local|tuic-local'
@@ -309,7 +276,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	fi
  	#dns2tcp
-@@ -150,9 +183,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -150,9 +176,7 @@ while [ "1" == "1" ]; do #死循环
  		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
  			logger -t "$NAME" "dns2tcp tunnel error.restart!"
  			echolog "dns2tcp tunnel error.restart!"
@@ -320,7 +287,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	#mosdns
  	elif [ "$pdnsd_process" -eq 4 ]; then
-@@ -160,9 +191,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -160,9 +184,7 @@ while [ "1" == "1" ]; do #死循环
  		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
  			logger -t "$NAME" "mosdns tunnel error.restart!"
  			echolog "mosdns tunnel error.restart!"
@@ -331,7 +298,7 @@ index 608a4f3..b8c7410 100755
  		fi
  	#chinadns-ng(proxy)
  	elif [ "$pdnsd_process" -eq 6 ]; then
-@@ -170,58 +199,30 @@ while [ "1" == "1" ]; do #死循环
+@@ -170,58 +192,27 @@ while [ "1" == "1" ]; do #死循环
  		if [ "$icount" -lt 1 ]; then #如果进程挂掉就重启它
  			logger -t "$NAME" "chinadns-ng $dnsserver tunnel error.restart!"
  			echolog "chinadns-ng $dnsserver tunnel error.restart!"
@@ -393,8 +360,5 @@ index 608a4f3..b8c7410 100755
  			fi
  		fi
  	fi
-+	if ! proxy_path_healthy; then
-+		recover_or_fail_open "end-to-end forced-proxy path is unavailable"
-+	fi
 +	rm -f "$FAIL_STATE_FILE"
  done

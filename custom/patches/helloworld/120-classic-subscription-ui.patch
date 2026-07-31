@@ -1,21 +1,108 @@
 diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-index 9fb594e..74b727f 100644
+index fe993bf..22145e2 100644
 --- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
 +++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-@@ -400,4 +400 @@ elseif upload_message then
+@@ -397,9 +397,6 @@ elseif upload_message then
+ 	m.message = upload_message
+ end
+ 
 -local style_section = m:section(SimpleSection)
 -style_section.template = "shadowsocksr/servers_subscribe_url_style"
 -
  -- Server Subscribe
-@@ -578,10 +575,6 @@ if has_mihomo then
+ s = m:section(TypedSection, "server_subscribe")
+ s.anonymous = true
+@@ -450,6 +447,57 @@ o.datatype = "uinteger"
+ o.rmempty = true
+ o:depends({auto_update = "1", config_auto_update_mode = "1"})
+ 
++local function collect_subscribe_item_ids(cursor)
++	local ids = {}
++	cursor:foreach("shadowsocksr", "server_subscribe_item", function(item)
++		ids[#ids + 1] = item[".name"]
++	end)
++	return ids
++end
++
++o = s:option(DynamicList, "_classic_subscribe_urls", translate("Subscribe URL"))
++o.rmempty = true
++function o.cfgvalue(self)
++	local urls = {}
++	self.map.uci:foreach("shadowsocksr", "server_subscribe_item", function(item)
++		local url = trim(item.url or "")
++		if url ~= "" and tostring(item.enabled or "1") ~= "0" then
++			urls[#urls + 1] = url
++		end
++	end)
++	return urls
++end
++function o.write(self, section, values)
++	local cursor = self.map.uci
++	local ids = collect_subscribe_item_ids(cursor)
++	local used = 0
++
++	if type(values) == "string" then
++		values = { values }
++	end
++	for _, value in ipairs(values or {}) do
++		local url = trim(value)
++		if url ~= "" then
++			used = used + 1
++			local sid = ids[used] or cursor:add("shadowsocksr", "server_subscribe_item")
++			cursor:set("shadowsocksr", sid, "enabled", "1")
++			if not cursor:get("shadowsocksr", sid, "alias") then
++				cursor:set("shadowsocksr", sid, "alias", string.format("Subscribe %d", used))
++			end
++			cursor:set("shadowsocksr", sid, "url", url)
++		end
++	end
++	for index = used + 1, #ids do
++		cursor:delete("shadowsocksr", ids[index])
++	end
++end
++function o.remove(self)
++	local cursor = self.map.uci
++	for _, sid in ipairs(collect_subscribe_item_ids(cursor)) do
++		cursor:delete("shadowsocksr", sid)
++	end
++end
++
+ o = s:option(Flag, "_subscribe_advanced_toggle", translate("Subscribe Advanced Settings"))
+ o.rmempty = false
+ o.default = "0"
+@@ -575,35 +623,6 @@ if has_mihomo then
+ 	o:depends("sub_convert", "1")
+ end
+ 
 -s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
 -
- s = m:section(TypedSection, "server_subscribe_item", translate("Subscribe URL"))
- s.anonymous = true
- s.addremove = true
- s.sortable = true
+-s = m:section(TypedSection, "server_subscribe_item", translate("Subscribe URL"))
+-s.anonymous = true
+-s.addremove = true
+-s.sortable = true
 -s.template = "shadowsocksr/subscribe_actions_footer"
 ---s.template = "cbi/tblsection"
 ---s.template_addremove = "shadowsocksr/subscribe_actions_footer"
-+s.template = "cbi/tblsection"
- s.description = translate("Manage multiple subscribe URLs, including Clash subscriptions. Only enabled entries are included when updating all subscriptions.")
+-s.description = translate("Manage multiple subscribe URLs, including Clash subscriptions. Only enabled entries are included when updating all subscriptions.")
+-
+-o = s:option(Flag, "enabled", translate("Enable"))
+-o.rmempty = false
+-o.default = "1"
+-o.width = "1%"
+-function o.cfgvalue(...)
+-	return Flag.cfgvalue(...) or "1"
+-end
+-
+-o = s:option(Value, "alias", translate("Alias"))
+-o.rmempty = true
+-o.width = "7.5rem"
+-function o.cfgvalue(self, section)
+-	return Value.cfgvalue(self, section) or string.format("Subscribe %s", section:sub(-4))
+-end
+-
+-o = s:option(Value, "url", translate("Subscribe URL"))
+-o.rmempty = false
+-
+ -- [[ Servers Manage ]]--
+ s = m:section(TypedSection, "servers")
+ s.anonymous = true

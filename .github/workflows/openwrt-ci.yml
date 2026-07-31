@@ -114,9 +114,11 @@ jobs:
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-rules
-          grep -Fq 's.template = "cbi/tblsection"' \
+          grep -Fq 'DynamicList, "_classic_subscribe_urls"' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          ! grep -Fq 's.template = "shadowsocksr/subscribe_actions_footer"' \
+          grep -Fq 'collect_subscribe_item_ids' \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
           ! grep -Fq 'servers_subscribe_url_style' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
@@ -135,7 +137,7 @@ jobs:
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
-          grep -Fq 'end-to-end forced-proxy path is unavailable' "$ssr_monitor"
+          ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -355,8 +357,9 @@ jobs:
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           grep -Fqx 'net.ipv4.tcp_congestion_control=bbr' "$bbr_sysctl"
           grep -Fq 'pi_ip="192.168.8.1"' "$preinit"
-          grep -Fq 's.template = "cbi/tblsection"' "$ssr_model"
-          ! grep -Fq 's.template = "shadowsocksr/subscribe_actions_footer"' "$ssr_model"
+          grep -Fq 'DynamicList, "_classic_subscribe_urls"' "$ssr_model"
+          grep -Fq 'collect_subscribe_item_ids' "$ssr_model"
+          ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' "$ssr_model"
           for footer in "$argon_footer" "$argon_login_footer"; do
             ! grep -Fq '<footer' "$footer"
             ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
@@ -372,6 +375,7 @@ jobs:
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
+          ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
