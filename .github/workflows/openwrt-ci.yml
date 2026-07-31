@@ -107,8 +107,8 @@ jobs:
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
 
           for patch in custom/patches/helloworld/*.patch; do
-            git -C feeds/helloworld apply --check "../../${patch}"
-            git -C feeds/helloworld apply "../../${patch}"
+            git -C feeds/helloworld apply --check --unidiff-zero "../../${patch}"
+            git -C feeds/helloworld apply --unidiff-zero "../../${patch}"
           done
           grep -Fq 'legacy_urls = { legacy_urls }' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
@@ -323,6 +323,7 @@ jobs:
           ssr_status="$inspect_dir/status.lua"
           ssr_controller="$inspect_dir/shadowsocksr-controller.lua"
           ssr_storage="$inspect_dir/subscription-storage.lua"
+          ssr_runtime="$inspect_dir/subscription-runtime.lua"
           bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
           argon_footer="$inspect_dir/argon-footer.ut"
           argon_login_footer="$inspect_dir/argon-footer-login.ut"
@@ -337,6 +338,7 @@ jobs:
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/status.lua >"$ssr_status"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/controller/shadowsocksr.lua >"$ssr_controller"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/shadowsocksr/subscription_storage.lua >"$ssr_storage"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/shadowsocksr/subscription_runtime.lua >"$ssr_runtime"
           unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
@@ -351,6 +353,7 @@ jobs:
           test -s "$ssr_status"
           test -s "$ssr_controller"
           test -s "$ssr_storage"
+          test -s "$ssr_runtime"
           test -s "$bbr_sysctl"
           test -s "$argon_footer"
           test -s "$argon_login_footer"
@@ -384,6 +387,8 @@ jobs:
           ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' "$ssr_model"
           grep -Fq 'function M.replace(cursor, value)' "$ssr_storage"
           grep -Fq 'cursor:set(CONFIG, sid, "url", url)' "$ssr_storage"
+          grep -Fq 'function M.ensure_main_server(cursor)' "$ssr_runtime"
+          grep -Fq 'cursor:set(CONFIG, global_sid, "global_server", first)' "$ssr_runtime"
           for footer in "$argon_footer" "$argon_login_footer"; do
             ! grep -Fq '<footer' "$footer"
             ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
@@ -420,6 +425,7 @@ jobs:
           grep -Fq 'if service_was_running then' "$ssr_subscribe"
           grep -Fq 'Restored the proxy service that was running before the update' "$ssr_subscribe"
           grep -Fq 'local subscription_label = "subscription["' "$ssr_subscribe"
+          grep -Fq 'subscription_runtime.ensure_main_server(ucic)' "$ssr_subscribe"
           ! grep -Fq 'log("处理订阅: " .. url)' "$ssr_subscribe"
 
           # Run the exact ARM64 firmware Lua and Nixio implementation under
@@ -431,6 +437,10 @@ jobs:
             "$runtime_root/usr/bin/qemu-aarch64-static"
           sudo install -m 0644 custom/tests/test-subscription-storage.lua \
             "$runtime_root/tmp/test-subscription-storage.lua"
+          sudo install -m 0644 custom/tests/test-subscription-runtime.lua \
+            "$runtime_root/tmp/test-subscription-runtime.lua"
+          sudo install -m 0644 custom/tests/test-subscription-runtime-target.lua \
+            "$runtime_root/tmp/test-subscription-runtime-target.lua"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua -e '
             local fs = require("nixio.fs")
             local path = "/tmp/hkc-nixio-chmod-test"
@@ -441,6 +451,72 @@ jobs:
           '
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
             /usr/bin/lua /tmp/test-subscription-storage.lua
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
+            /usr/bin/lua /tmp/test-subscription-runtime.lua
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
+            /usr/bin/lua /tmp/test-subscription-runtime-target.lua
+
+          # Exercise the actual ARM64 UCI, generator and Xray binary with a
+          # redacted synthetic VLESS Reality node. This validates the selected
+          # main-node reference, TCP REDIRECT/UDP TPROXY config generation and
+          # a real local TCP listener without contacting a private node.
+          target_uci() {
+            sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /sbin/uci "$@"
+          }
+          target_uci -q set shadowsocksr.hkc_runtime_vless=servers
+          target_uci -q set shadowsocksr.hkc_runtime_vless.type='v2ray'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.v2ray_protocol='vless'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.server='192.0.2.1'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.server_port='443'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.vmess_id='00000000-0000-4000-8000-000000000001'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.transport='raw'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.reality='1'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_publickey='B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_shortid='0123456789abcdef'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_host='example.com'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_flow='xtls-rprx-vision'
+          target_uci -q set shadowsocksr.hkc_runtime_vless.fingerprint='chrome'
+          target_uci -q set shadowsocksr.@global[0].global_server='hkc_runtime_vless'
+          target_uci -q commit shadowsocksr
+          test "$(target_uci -q get shadowsocksr.@global[0].global_server)" = 'hkc_runtime_vless'
+
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
+            /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless tcp 38123 \
+            >"$inspect_dir/xray-vless-tcp.json"
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
+            /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless udp 38124 \
+            >"$inspect_dir/xray-vless-udp.json"
+          grep -Fq '"followRedirect": true' "$inspect_dir/xray-vless-tcp.json"
+          grep -Fq '"tproxy": "tproxy"' "$inspect_dir/xray-vless-udp.json"
+          sudo install -m 0600 "$inspect_dir/xray-vless-tcp.json" \
+            "$runtime_root/tmp/xray-vless-tcp.json"
+          sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
+            "$runtime_root/tmp/xray-vless-udp.json"
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+            run -test -c /tmp/xray-vless-tcp.json
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+            run -test -c /tmp/xray-vless-udp.json
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+            run -c /tmp/xray-vless-tcp.json >"$inspect_dir/xray-runtime.log" 2>&1 &
+          xray_pid=$!
+          listener_ready=0
+          for _ in $(seq 1 20); do
+            if ss -lnt | grep -Eq '[:.]38123[[:space:]]'; then
+              listener_ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$listener_ready" -ne 1 ]; then
+            cat "$inspect_dir/xray-runtime.log"
+            sudo kill "$xray_pid" 2>/dev/null || true
+            wait "$xray_pid" 2>/dev/null || true
+            echo "::error::ARM64 Xray did not open the expected TCP listener"
+            exit 1
+          fi
+          sudo kill "$xray_pid" 2>/dev/null || true
+          wait "$xray_pid" 2>/dev/null || true
+          echo 'target VLESS Reality config and TCP listener tests passed'
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
