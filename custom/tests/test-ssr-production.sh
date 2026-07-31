@@ -30,8 +30,13 @@ reject_text() {
 }
 
 test -s "$classic_submit"
-require_text 'pending.name = fieldName;' "$classic_submit"
+require_text "document.addEventListener('submit'" "$classic_submit"
+require_text "document.addEventListener('click'" "$classic_submit"
+require_text "value.name = fieldName;" "$classic_submit"
+require_text "data-ssr-subscribe-pending" "$classic_submit"
 require_text "marker.name = fieldName + '.__present';" "$classic_submit"
+reject_text 'pending.name = fieldName;' "$classic_submit"
+reject_text 'setTimeout(bindWithRetry' "$classic_submit"
 require_text 'formvalue(self:cbid(section) .. ".__present")' "$servers"
 require_text 'classic_subscribe_commit' "$servers"
 
@@ -52,7 +57,10 @@ require_text 'transparent proxy data path is unavailable' "$monitor"
 require_text 'global_tcp_listener_running' "$status"
 require_text 'default_tcp_listener_running' "$controller"
 
+require_text 'local function write_new_md5(groupHash, content_md5, url)' "$subscribe"
+require_text 'md5 = content_md5' "$subscribe"
 require_text 'url_hash = md5(url)' "$subscribe"
+reject_text 'local function write_new_md5(groupHash, md5, url)' "$subscribe"
 require_text 'nixio.fs.chmod(path, 384)' "$subscribe"
 require_text 'local subscription_label = "subscription["' "$subscribe"
 reject_text 'log("处理订阅: " .. url)' "$subscribe"

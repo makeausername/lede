@@ -128,6 +128,8 @@ jobs:
           sh -n "$ssr_monitor"
           sh custom/tests/test-ssr-production.sh \
             feeds/helloworld/luci-app-ssr-plus
+          node custom/tests/test-classic-subscribe-commit.js \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/classic_subscribe_commit.htm
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
           grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
           grep -Fq 'if ! Start_Run || ! main_proxy_runtime_healthy; then' "$ssr_init"

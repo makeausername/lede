@@ -99,53 +99,81 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..a3719da25261638d7e21b14b7c453761ec82e36b
 --- /dev/null
 +++ b/luci-app-ssr-plus/luasrc/view/shadowsocksr/classic_subscribe_commit.htm
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,77 @@
 +<script type="text/javascript">
 +//<![CDATA[
 +(function() {
-+	function bindClassicSubscribeField() {
-+		var pending = document.querySelector(
-+			'.cbi-dynlist .add-item > input[id$="._classic_subscribe_urls"]'
++	var pendingSelector =
++		'.cbi-dynlist .add-item > input[id$="._classic_subscribe_urls"]';
++
++	function removeTransientValues(form) {
++		var transient = form.querySelectorAll(
++			'input[data-ssr-subscribe-pending="1"]'
 +		);
-+		if (!pending || pending.dataset.ssrSubmitBound === '1') {
-+			return !!pending;
++		for (var i = 0; i < transient.length; i++) {
++			transient[i].parentNode.removeChild(transient[i]);
++		}
++	}
++
++	function prepareClassicSubscribeField() {
++		var pending = document.querySelector(
++			pendingSelector
++		);
++		if (!pending || !pending.form) {
++			return false;
 +		}
 +
 +		var fieldName = (pending.id || '').replace(/^widget\./, '');
 +		if (!fieldName) {
 +			return false;
 +		}
++		var form = pending.form;
++		removeTransientValues(form);
 +
 +		/*
-+		 * LuCI DynamicList intentionally leaves the pending row unnamed until
-+		 * the + button is clicked. Give it the real CBI name so a direct Save
-+		 * submits the visible value too. An empty pending row also acts as an
-+		 * explicit presence marker when all committed rows are removed.
++		 * LuCI DynamicList leaves the live add-row input unnamed. Add a
++		 * one-submit hidden copy so direct Save has exactly the same backend
++		 * value as clicking + first, without depending on widget render timing.
 +		 */
-+		pending.name = fieldName;
-+		pending.dataset.ssrSubmitBound = '1';
++		if (pending.value && pending.value.trim() !== '') {
++			var value = document.createElement('input');
++			value.type = 'hidden';
++			value.name = fieldName;
++			value.value = pending.value.trim();
++			value.setAttribute('data-ssr-subscribe-pending', '1');
++			form.appendChild(value);
++		}
 +
-+		var marker = document.createElement('input');
-+		marker.type = 'hidden';
++		var marker = form.querySelector(
++			'input[data-ssr-subscribe-presence="1"]'
++		);
++		if (!marker) {
++			marker = document.createElement('input');
++			marker.type = 'hidden';
++			marker.setAttribute('data-ssr-subscribe-presence', '1');
++			form.appendChild(marker);
++		}
 +		marker.name = fieldName + '.__present';
 +		marker.value = '1';
-+		pending.form.appendChild(marker);
 +		return true;
 +	}
 +
-+	var attempts = 0;
-+	function bindWithRetry() {
-+		if (bindClassicSubscribeField() || attempts++ >= 30) {
-+			return;
++	/*
++	 * Resolve the DynamicList only at the action boundary. The submit handler
++	 * covers normal CBI submission; the click handler also covers LuCI buttons
++	 * which invoke form.submit() from their own click callback.
++	 */
++	document.addEventListener('submit', function() {
++		prepareClassicSubscribeField();
++	}, true);
++	document.addEventListener('click', function(event) {
++		var target = event.target;
++		if (target && target.closest && target.closest(
++			'input[type="submit"], button[type="submit"], .cbi-button-save, .cbi-button-apply'
++		)) {
++			prepareClassicSubscribeField();
 +		}
-+		window.setTimeout(bindWithRetry, 100);
-+	}
-+
-+	if (document.readyState === 'loading') {
-+		document.addEventListener('DOMContentLoaded', bindWithRetry);
-+	} else {
-+		bindWithRetry();
-+	}
++	}, true);
 +})();
 +//]]>
 +</script>
@@ -393,9 +421,13 @@ index 4f4822d446e0363d4004fce2edc207730fb27e34..7282d7dcdcd9ec2ee6bb4ae93af68de5
  					end
  				end
  			end
-@@ -2055,9 +2062,11 @@ local function write_new_md5(groupHash, md5, url)
+@@ -2053,11 +2060,13 @@
+-local function write_new_md5(groupHash, md5, url)
++local function write_new_md5(groupHash, content_md5, url)
+ 	local path = get_md5_path(groupHash)
  	local data = {
- 		md5 = md5,
+-		md5 = md5,
++		md5 = content_md5,
  		hash = groupHash,
 -		url = url
 +		url_hash = md5(url)
