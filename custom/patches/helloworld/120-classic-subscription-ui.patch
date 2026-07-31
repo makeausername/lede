@@ -1,8 +1,16 @@
 diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-index fe993bf..22145e2 100644
+index fe993bf..651d1d5 100644
 --- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
 +++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-@@ -397,9 +397,6 @@ elseif upload_message then
+@@ -10,6 +10,7 @@ local json = require "luci.jsonc"
+ local cbi = require "luci.cbi"
+ local uci = require "luci.model.uci".cursor()
+ local URL = require "url"
++local subscription_storage = require "luci.model.shadowsocksr.subscription_storage"
+ 
+ local m, s, o, node
+ local server_count = 0
+@@ -397,9 +398,6 @@ elseif upload_message then
  	m.message = upload_message
  end
  
@@ -12,65 +20,26 @@ index fe993bf..22145e2 100644
  -- Server Subscribe
  s = m:section(TypedSection, "server_subscribe")
  s.anonymous = true
-@@ -450,6 +447,57 @@ o.datatype = "uinteger"
+@@ -450,6 +448,18 @@ o.datatype = "uinteger"
  o.rmempty = true
  o:depends({auto_update = "1", config_auto_update_mode = "1"})
  
-+local function collect_subscribe_item_ids(cursor)
-+	local ids = {}
-+	cursor:foreach("shadowsocksr", "server_subscribe_item", function(item)
-+		ids[#ids + 1] = item[".name"]
-+	end)
-+	return ids
-+end
-+
-+o = s:option(DynamicList, "_classic_subscribe_urls", translate("Subscribe URL"))
++o = s:option(Value, "_classic_subscribe_url", translate("Subscribe URL"))
 +o.rmempty = true
 +function o.cfgvalue(self)
-+	local urls = {}
-+	self.map.uci:foreach("shadowsocksr", "server_subscribe_item", function(item)
-+		local url = trim(item.url or "")
-+		if url ~= "" and tostring(item.enabled or "1") ~= "0" then
-+			urls[#urls + 1] = url
-+		end
-+	end)
-+	return urls
++	return subscription_storage.get(self.map.uci)
 +end
-+function o.write(self, section, values)
-+	local cursor = self.map.uci
-+	local ids = collect_subscribe_item_ids(cursor)
-+	local used = 0
-+
-+	if type(values) == "string" then
-+		values = { values }
-+	end
-+	for _, value in ipairs(values or {}) do
-+		local url = trim(value)
-+		if url ~= "" then
-+			used = used + 1
-+			local sid = ids[used] or cursor:add("shadowsocksr", "server_subscribe_item")
-+			cursor:set("shadowsocksr", sid, "enabled", "1")
-+			if not cursor:get("shadowsocksr", sid, "alias") then
-+				cursor:set("shadowsocksr", sid, "alias", string.format("Subscribe %d", used))
-+			end
-+			cursor:set("shadowsocksr", sid, "url", url)
-+		end
-+	end
-+	for index = used + 1, #ids do
-+		cursor:delete("shadowsocksr", ids[index])
-+	end
++function o.write(self, section, value)
++	subscription_storage.replace(self.map.uci, value)
 +end
 +function o.remove(self)
-+	local cursor = self.map.uci
-+	for _, sid in ipairs(collect_subscribe_item_ids(cursor)) do
-+		cursor:delete("shadowsocksr", sid)
-+	end
++	subscription_storage.clear(self.map.uci)
 +end
 +
  o = s:option(Flag, "_subscribe_advanced_toggle", translate("Subscribe Advanced Settings"))
  o.rmempty = false
  o.default = "0"
-@@ -575,35 +623,6 @@ if has_mihomo then
+@@ -575,35 +585,6 @@ if has_mihomo then
  	o:depends("sub_convert", "1")
  end
  
@@ -106,3 +75,67 @@ index fe993bf..22145e2 100644
  -- [[ Servers Manage ]]--
  s = m:section(TypedSection, "servers")
  s.anonymous = true
+diff --git a/luci-app-ssr-plus/luasrc/model/shadowsocksr/subscription_storage.lua b/luci-app-ssr-plus/luasrc/model/shadowsocksr/subscription_storage.lua
+new file mode 100644
+index 0000000..bc95a21
+--- /dev/null
++++ b/luci-app-ssr-plus/luasrc/model/shadowsocksr/subscription_storage.lua
+@@ -0,0 +1,58 @@
++local M = {}
++
++local CONFIG = "shadowsocksr"
++local SECTION_TYPE = "server_subscribe_item"
++
++local function trim(value)
++	if type(value) ~= "string" then
++		return ""
++	end
++	return (value:gsub("^%s*(.-)%s*$", "%1"))
++end
++
++function M.collect_ids(cursor)
++	local ids = {}
++	cursor:foreach(CONFIG, SECTION_TYPE, function(item)
++		ids[#ids + 1] = item[".name"]
++	end)
++	return ids
++end
++
++function M.get(cursor)
++	local selected = ""
++	cursor:foreach(CONFIG, SECTION_TYPE, function(item)
++		if selected == "" and tostring(item.enabled or "1") ~= "0" then
++			selected = trim(item.url)
++		end
++	end)
++	return selected
++end
++
++function M.clear(cursor)
++	for _, sid in ipairs(M.collect_ids(cursor)) do
++		cursor:delete(CONFIG, sid)
++	end
++end
++
++function M.replace(cursor, value)
++	local url = trim(value)
++	if url == "" then
++		M.clear(cursor)
++		return nil
++	end
++
++	local ids = M.collect_ids(cursor)
++	local sid = ids[1] or cursor:add(CONFIG, SECTION_TYPE)
++	cursor:set(CONFIG, sid, "enabled", "1")
++	if not cursor:get(CONFIG, sid, "alias") then
++		cursor:set(CONFIG, sid, "alias", "Subscribe 1")
++	end
++	cursor:set(CONFIG, sid, "url", url)
++
++	for index = 2, #ids do
++		cursor:delete(CONFIG, ids[index])
++	end
++	return sid
++end
++
++return M

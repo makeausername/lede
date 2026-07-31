@@ -57,7 +57,7 @@ jobs:
             libgmp3-dev libc6-dev-i386 libltdl-dev libmpc-dev libmpfr-dev \
             libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev \
             libtool lrzsz msmtp ninja-build p7zip p7zip-full patch pkgconf \
-            python3 python3-pyelftools python3-setuptools qemu-utils rsync \
+            python3 python3-pyelftools python3-setuptools qemu-user-static qemu-utils rsync \
             scons squashfs-tools subversion swig texinfo time uglifyjs unzip \
             upx-ucl wget xmlto xxd zlib1g-dev
           sudo apt-get clean
@@ -114,9 +114,11 @@ jobs:
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-rules
-          grep -Fq 'DynamicList, "_classic_subscribe_urls"' \
+          grep -Fq 'Value, "_classic_subscribe_url"' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          grep -Fq 'collect_subscribe_item_ids' \
+          grep -Fq 'subscription_storage.replace(self.map.uci, value)' \
+            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          ! grep -Fq 'DynamicList, "_classic_subscribe_urls"' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
           ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' \
             feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
@@ -128,8 +130,6 @@ jobs:
           sh -n "$ssr_monitor"
           sh custom/tests/test-ssr-production.sh \
             feeds/helloworld/luci-app-ssr-plus
-          node custom/tests/test-classic-subscribe-commit.js \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/classic_subscribe_commit.htm
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
           grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
           grep -Fq 'if ! Start_Run || ! main_proxy_runtime_healthy; then' "$ssr_init"
@@ -311,7 +311,7 @@ jobs:
           ! grep -Eq '^(mihomo|mosdns|shadowsocksr-libev-|3proxy) ' "$manifest"
 
           inspect_dir="$(mktemp -d)"
-          trap 'rm -rf "$inspect_dir"' EXIT
+          trap 'sudo rm -rf "$inspect_dir"' EXIT
           tar -xf "$firmware" -C "$inspect_dir"
           root_image="$(find "$inspect_dir" -type f -name root -print -quit)"
           test -n "$root_image"
@@ -322,7 +322,7 @@ jobs:
           ssr_model="$inspect_dir/servers.lua"
           ssr_status="$inspect_dir/status.lua"
           ssr_controller="$inspect_dir/shadowsocksr-controller.lua"
-          ssr_classic_submit="$inspect_dir/classic-subscribe-commit.htm"
+          ssr_storage="$inspect_dir/subscription-storage.lua"
           bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
           argon_footer="$inspect_dir/argon-footer.ut"
           argon_login_footer="$inspect_dir/argon-footer-login.ut"
@@ -336,7 +336,7 @@ jobs:
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_model"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/status.lua >"$ssr_status"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/controller/shadowsocksr.lua >"$ssr_controller"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/view/shadowsocksr/classic_subscribe_commit.htm >"$ssr_classic_submit"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/shadowsocksr/subscription_storage.lua >"$ssr_storage"
           unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
@@ -350,7 +350,7 @@ jobs:
           test -s "$ssr_model"
           test -s "$ssr_status"
           test -s "$ssr_controller"
-          test -s "$ssr_classic_submit"
+          test -s "$ssr_storage"
           test -s "$bbr_sysctl"
           test -s "$argon_footer"
           test -s "$argon_login_footer"
@@ -376,17 +376,14 @@ jobs:
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           grep -Fqx 'net.ipv4.tcp_congestion_control=bbr' "$bbr_sysctl"
           grep -Fq 'pi_ip="192.168.8.1"' "$preinit"
-          grep -Fq 'DynamicList, "_classic_subscribe_urls"' "$ssr_model"
-          grep -Fq 'collect_subscribe_item_ids' "$ssr_model"
-          grep -Fq 'formvalue(self:cbid(section) .. ".__present")' "$ssr_model"
+          grep -Fq 'Value, "_classic_subscribe_url"' "$ssr_model"
+          grep -Fq 'subscription_storage.replace(self.map.uci, value)' "$ssr_model"
+          grep -Fq 'subscription_storage.clear(self.map.uci)' "$ssr_model"
+          ! grep -Fq 'DynamicList, "_classic_subscribe_urls"' "$ssr_model"
+          ! grep -Fq 'classic_subscribe_commit' "$ssr_model"
           ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' "$ssr_model"
-          grep -Fq "document.addEventListener('submit'" "$ssr_classic_submit"
-          grep -Fq "document.addEventListener('click'" "$ssr_classic_submit"
-          grep -Fq 'value.name = fieldName;' "$ssr_classic_submit"
-          grep -Fq 'data-ssr-subscribe-pending' "$ssr_classic_submit"
-          grep -Fq "marker.name = fieldName + '.__present';" "$ssr_classic_submit"
-          ! grep -Fq 'pending.name = fieldName;' "$ssr_classic_submit"
-          node custom/tests/test-classic-subscribe-commit.js "$ssr_classic_submit"
+          grep -Fq 'function M.replace(cursor, value)' "$ssr_storage"
+          grep -Fq 'cursor:set(CONFIG, sid, "url", url)' "$ssr_storage"
           for footer in "$argon_footer" "$argon_login_footer"; do
             ! grep -Fq '<footer' "$footer"
             ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
@@ -417,9 +414,33 @@ jobs:
           grep -Fq 'md5 = content_md5' "$ssr_subscribe"
           grep -Fq 'url_hash = md5(url)' "$ssr_subscribe"
           ! grep -Fq 'local function write_new_md5(groupHash, md5, url)' "$ssr_subscribe"
-          grep -Fq 'nixio.fs.chmod(path, 384)' "$ssr_subscribe"
+          grep -Fq 'nixio.fs.chmod(path, 600)' "$ssr_subscribe"
+          ! grep -Fq 'nixio.fs.chmod(path, 384)' "$ssr_subscribe"
+          grep -Fq 'local config_snapshot = nixio.fs.readfile(config_path)' "$ssr_subscribe"
+          grep -Fq 'if service_was_running then' "$ssr_subscribe"
+          grep -Fq 'Restored the proxy service that was running before the update' "$ssr_subscribe"
           grep -Fq 'local subscription_label = "subscription["' "$ssr_subscribe"
           ! grep -Fq 'log("处理订阅: " .. url)' "$ssr_subscribe"
+
+          # Run the exact ARM64 firmware Lua and Nixio implementation under
+          # QEMU. This catches target-only API mistakes such as chmod(384), and
+          # tests the production storage module instead of a browser simulation.
+          runtime_root="$inspect_dir/runtime-root"
+          sudo unsquashfs -d "$runtime_root" "$root_image" >/dev/null
+          sudo install -m 0755 /usr/bin/qemu-aarch64-static \
+            "$runtime_root/usr/bin/qemu-aarch64-static"
+          sudo install -m 0644 custom/tests/test-subscription-storage.lua \
+            "$runtime_root/tmp/test-subscription-storage.lua"
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua -e '
+            local fs = require("nixio.fs")
+            local path = "/tmp/hkc-nixio-chmod-test"
+            assert(fs.writefile(path, "ok"))
+            assert(fs.chmod(path, 600))
+            assert(fs.unlink(path))
+            print("target nixio chmod test passed")
+          '
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
+            /usr/bin/lua /tmp/test-subscription-storage.lua
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
