@@ -51,7 +51,7 @@ jobs:
             git -C .preflight-helloworld apply --unidiff-zero \
               "$GITHUB_WORKSPACE/$patch"
           done
-          custom/tests/test-ssr-production.sh \
+          sh custom/tests/test-ssr-production.sh \
             .preflight-helloworld/luci-app-ssr-plus
 
       - name: Validate current SSR on extracted ARM64 firmware
