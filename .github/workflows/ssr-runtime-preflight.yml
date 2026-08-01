@@ -46,7 +46,10 @@ jobs:
           git -C .preflight-helloworld fetch --depth=1 origin "$HELLOWORLD_REV"
           git -C .preflight-helloworld checkout --detach FETCH_HEAD
           for patch in custom/patches/helloworld/*.patch; do
-            git -C .preflight-helloworld apply "$GITHUB_WORKSPACE/$patch"
+            git -C .preflight-helloworld apply --check --unidiff-zero \
+              "$GITHUB_WORKSPACE/$patch"
+            git -C .preflight-helloworld apply --unidiff-zero \
+              "$GITHUB_WORKSPACE/$patch"
           done
           custom/tests/test-ssr-production.sh \
             .preflight-helloworld/luci-app-ssr-plus
