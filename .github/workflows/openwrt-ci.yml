@@ -481,9 +481,11 @@ jobs:
           test "$(target_uci -q get shadowsocksr.@global[0].global_server)" = 'hkc_runtime_vless'
 
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
+            -e 'package.loaded["luci.model.uci"] = require("uci")' \
             /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless tcp 38123 \
             >"$inspect_dir/xray-vless-tcp.json"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
+            -e 'package.loaded["luci.model.uci"] = require("uci")' \
             /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless udp 38124 \
             >"$inspect_dir/xray-vless-udp.json"
           grep -Fq '"followRedirect": true' "$inspect_dir/xray-vless-tcp.json"
