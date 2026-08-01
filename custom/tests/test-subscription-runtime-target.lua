@@ -1,7 +1,10 @@
 -- The extracted firmware root is intentionally offline and has no ubus/rpcd
--- daemon. Use the target's native libuci-lua cursor so this still exercises the
--- real ARM64 UCI implementation and on-image configuration.
-local uci = require "uci".cursor()
+-- daemon. Use a LuCI-compatible wrapper around the target's native libuci-lua
+-- cursor so this still exercises the real ARM64 implementation and on-image
+-- configuration without pretending that the native cursor has get_first().
+local offline_uci = dofile("/tmp/offline-luci-model-uci.lua")
+package.loaded["luci.model.uci"] = offline_uci
+local uci = offline_uci.cursor()
 local runtime = require "luci.model.shadowsocksr.subscription_runtime"
 
 local config = "shadowsocksr"

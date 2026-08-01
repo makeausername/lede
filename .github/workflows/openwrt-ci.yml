@@ -441,6 +441,8 @@ jobs:
             "$runtime_root/tmp/test-subscription-runtime.lua"
           sudo install -m 0644 custom/tests/test-subscription-runtime-target.lua \
             "$runtime_root/tmp/test-subscription-runtime-target.lua"
+          sudo install -m 0644 custom/tests/offline-luci-model-uci.lua \
+            "$runtime_root/tmp/offline-luci-model-uci.lua"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua -e '
             local fs = require("nixio.fs")
             local path = "/tmp/hkc-nixio-chmod-test"
@@ -481,11 +483,11 @@ jobs:
           test "$(target_uci -q get shadowsocksr.@global[0].global_server)" = 'hkc_runtime_vless'
 
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
-            -e 'package.loaded["luci.model.uci"] = require("uci")' \
+            -e 'package.loaded["luci.model.uci"] = dofile("/tmp/offline-luci-model-uci.lua")' \
             /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless tcp 38123 \
             >"$inspect_dir/xray-vless-tcp.json"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
-            -e 'package.loaded["luci.model.uci"] = require("uci")' \
+            -e 'package.loaded["luci.model.uci"] = dofile("/tmp/offline-luci-model-uci.lua")' \
             /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless udp 38124 \
             >"$inspect_dir/xray-vless-udp.json"
           grep -Fq '"followRedirect": true' "$inspect_dir/xray-vless-tcp.json"
