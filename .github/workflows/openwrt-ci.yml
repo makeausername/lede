@@ -106,6 +106,14 @@ jobs:
           test "$(grep -Fc 'id="modemenu"' \
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
 
+          for patch in custom/patches/packages/*.patch; do
+            git -C feeds/packages apply --check "../../${patch}"
+            git -C feeds/packages apply "../../${patch}"
+          done
+          grep -Fq 'PKG_VERSION:=26.3.23' feeds/packages/net/xray-core/Makefile
+          grep -Fq 'PKG_HASH:=eace1512dc4f266e44558ba8d606b5c84f960b5bc2e3d33004f813fe61534949' \
+            feeds/packages/net/xray-core/Makefile
+
           for patch in custom/patches/helloworld/*.patch; do
             git -C feeds/helloworld apply --check --unidiff-zero "../../${patch}"
             git -C feeds/helloworld apply --unidiff-zero "../../${patch}"
@@ -130,6 +138,8 @@ jobs:
           sh -n "$ssr_monitor"
           sh custom/tests/test-ssr-production.sh \
             feeds/helloworld/luci-app-ssr-plus
+          sh custom/tests/test-ssr-dns-runtime.sh \
+            feeds/helloworld/luci-app-ssr-plus
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
           grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
           grep -Fq 'if ! Start_Run || ! main_proxy_runtime_healthy; then' "$ssr_init"
@@ -140,6 +150,8 @@ jobs:
           grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
+          grep -Fq 'udp_listener_running' "$ssr_monitor"
+          ! grep -Fq 'proxy_path_healthy' "$ssr_monitor"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
           ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
           ./scripts/feeds install -a
@@ -189,6 +201,8 @@ jobs:
           grep -Fq "network.globals.packet_steering='1'" "$defaults"
           grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
+          grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
+          grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -298,7 +312,7 @@ jobs:
             exit 1
           fi
 
-          grep -Eq '^xray-core ' "$manifest"
+          grep -Fqx 'xray-core - 26.3.23-1' "$manifest"
           grep -Eq '^luci-app-ssr-plus ' "$manifest"
           grep -Eq '^luci-theme-argon ' "$manifest"
           grep -Eq '^luci-i18n-base-zh-cn ' "$manifest"
@@ -377,6 +391,8 @@ jobs:
           grep -Fq "network.globals.packet_steering='1'" "$defaults"
           grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
+          grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
+          grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
           grep -Fqx 'net.ipv4.tcp_congestion_control=bbr' "$bbr_sysctl"
           grep -Fq 'pi_ip="192.168.8.1"' "$preinit"
           grep -Fq 'Value, "_classic_subscribe_url"' "$ssr_model"
@@ -407,8 +423,10 @@ jobs:
           grep -Fq 'busybox netstat -lnt' "$ssr_init"
           grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
-          grep -Fq 'proxy_path_healthy' "$ssr_monitor"
-          grep -Fq 'transparent proxy data path is unavailable' "$ssr_monitor"
+          grep -Fq 'udp_listener_running' "$ssr_monitor"
+          grep -Fq 'DNS2TCP local proxy DNS listener is unavailable' "$ssr_monitor"
+          grep -Fq 'ChinaDNS-NG proxy DNS listener is unavailable' "$ssr_monitor"
+          ! grep -Fq 'proxy_path_healthy' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
           ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
@@ -503,17 +521,17 @@ jobs:
           sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
             "$runtime_root/tmp/xray-vless-udp.json"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/xray version | grep -F 'Xray 26.6.1'
+            /usr/bin/xray version | grep -F 'Xray 26.3.23'
 
           xray_validator="$inspect_dir/xray-validator"
           mkdir -p "$xray_validator"
           curl --fail --location --silent --show-error \
-            https://github.com/XTLS/Xray-core/releases/download/v26.6.1/Xray-linux-64.zip \
+            https://github.com/XTLS/Xray-core/releases/download/v26.3.23/Xray-linux-64.zip \
             --output "$xray_validator/Xray-linux-64.zip"
-          echo '136e822e99e616692550723e8b607cd8858c62a390aea5704938bc27930904ba  '"$xray_validator/Xray-linux-64.zip" \
+          echo '8985f9dac52714194cd86368e6361f234b9e26017603b24d58d83041197c5db5  '"$xray_validator/Xray-linux-64.zip" \
             | sha256sum --check --strict
           unzip -q "$xray_validator/Xray-linux-64.zip" -d "$xray_validator"
-          "$xray_validator/xray" version | grep -F 'Xray 26.6.1'
+          "$xray_validator/xray" version | grep -F 'Xray 26.3.23'
           export XRAY_LOCATION_ASSET="$xray_validator"
           "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-tcp.json"
           "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-udp.json"

@@ -14,8 +14,9 @@ jobs:
     timeout-minutes: 20
     env:
       HELLOWORLD_REV: 737e5d719030363dbf96224c9f065afa5ea6dba8
-      XRAY_VERSION: 26.6.1
-      XRAY_LINUX64_SHA256: 136e822e99e616692550723e8b607cd8858c62a390aea5704938bc27930904ba
+      XRAY_VERSION: 26.3.23
+      XRAY_LINUX64_SHA256: 8985f9dac52714194cd86368e6361f234b9e26017603b24d58d83041197c5db5
+      BASE_XRAY_VERSION: 26.6.1
 
     steps:
       - name: Checkout validation source
@@ -54,6 +55,8 @@ jobs:
               "$GITHUB_WORKSPACE/$patch"
           done
           sh custom/tests/test-ssr-production.sh \
+            .preflight-helloworld/luci-app-ssr-plus
+          sh custom/tests/test-ssr-dns-runtime.sh \
             .preflight-helloworld/luci-app-ssr-plus
 
       - name: Prepare matching native Xray validator
@@ -172,7 +175,10 @@ jobs:
             "$runtime_root/tmp/xray-vless-tcp.json"
           sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
             "$runtime_root/tmp/xray-vless-udp.json"
-          target_xray version | grep -F "Xray ${XRAY_VERSION}"
+          # The preflight artifact is the previous known-good runtime base.
+          # The full build verifies the newly pinned target binary; here only
+          # its existing ARM64 execution path is required.
+          target_xray version | grep -F "Xray ${BASE_XRAY_VERSION}"
 
           host_xray="$GITHUB_WORKSPACE/.preflight-xray/xray"
           export XRAY_LOCATION_ASSET="$GITHUB_WORKSPACE/.preflight-xray"

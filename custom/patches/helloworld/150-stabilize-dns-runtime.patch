@@ -1,0 +1,127 @@
+diff --git a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+--- a/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
++++ b/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+@@ -154,6 +154,21 @@ supports_dns2tcp_filter_aaaa() {
+ 	return 1
+ }
+ 
++wait_for_udp_listener() {
++	local port="$1"
++	local attempt=0
++
++	while [ "$attempt" -lt 5 ]; do
++		if busybox netstat -lnu 2>/dev/null | awk -v port="$port" \
++			'$4 ~ (":" port "$") { found=1 } END { exit !found }'; then
++			return 0
++		fi
++		attempt=$((attempt + 1))
++		sleep 1
++	done
++	return 1
++}
++
+ start_dns2tcp() {
+ 	local dnsserver="$1"
+ 	local dns2tcp_bin
+@@ -172,6 +187,12 @@ start_dns2tcp() {
+ 	else
+ 		ln_start_bin "$dns2tcp_bin" dns2tcp -L "127.0.0.1#$dns_port" -R "$filtered_dnsserver"
+ 	fi
++
++	if ! wait_for_udp_listener "$dns_port"; then
++		echolog "DNS2TCP failed to open the local proxy DNS listener on port $dns_port."
++		return 1
++	fi
++	return 0
+ }
+ 
+ supports_builtin_dns() {
+@@ -1210 +1231,0 @@ start_dns() {
+-	local chinadns_ng_dns
+@@ -1253 +1274 @@ start_dns() {
+-			start_dns2tcp "$dnsserver"
++			start_dns2tcp "$dnsserver" || return 1
+@@ -1281 +1301 @@ start_dns() {
+-			chinadns_ng_dns=""
++			set -- -b 127.0.0.1 -l "$tmp_dns_port" -l "$dns_port" -p 3 -d gfw
+@@ -1303 +1323 @@ start_dns() {
+-				chinadns_ng_dns="${chinadns_ng_dns} -t ${chinadns_ng_server}"
++				set -- "$@" -t "$chinadns_ng_server"
+@@ -1306,2 +1326,6 @@ start_dns() {
+-			dnsserver="$chinadns_ng_dns"
+-			ln_start_bin "$(first_type chinadns-ng)" chinadns-ng -b 127.0.0.1 -l "$tmp_dns_port" -l "$dns_port" -p 3 -d gfw "$dnsserver" -N --filter-qtype 64,65 -f -r --cache 4096 --cache-stale 86400 --cache-refresh 20
++			set -- "$@" -N --filter-qtype 64,65 -f -r --cache 4096 --cache-stale 86400 --cache-refresh 20
++			ln_start_bin "$(first_type chinadns-ng)" chinadns-ng "$@"
++			if ! wait_for_udp_listener "$tmp_dns_port" || ! wait_for_udp_listener "$dns_port"; then
++				echolog "ChinaDNS-NG failed to open proxy DNS listeners on ports $tmp_dns_port and $dns_port."
++				return 1
++			fi
+@@ -1322,2 +1347,6 @@ start_dns() {
+-				filtered_chinadns=$(echo "$chinadns" | sed 's/:/#/')
++				filtered_chinadns=$(echo "$chinadns" | sed 's/:/#/g')
+ 				ln_start_bin "$(first_type chinadns-ng)" chinadns-ng -l "$china_dns_port" -4 china -p 3 -c "$filtered_chinadns" -t "127.0.0.1#$dns_port" -N -f -r
++				if ! wait_for_udp_listener "$china_dns_port"; then
++					echolog "ChinaDNS-NG failed to open the domestic DNS listener on port $china_dns_port."
++					return 1
++				fi
+@@ -1343,0 +1373 @@ start_dns() {
++	return 0
+diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-monitor b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+--- a/luci-app-ssr-plus/root/usr/bin/ssr-monitor
++++ b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+@@ -70,13 +70,7 @@ tcp_listener_running() {
+ }
+ 
+-proxy_path_health_required() {
+-	[ -n "$GLOBAL_SERVER" ] && [ "$GLOBAL_SERVER" != "nil" ] && \
+-		[ "$(uci_get_by_type access_control router_proxy 1)" = "1" ]
+-}
+-
+-proxy_path_healthy() {
+-	curl -4 -kfsS --connect-timeout 4 --max-time 8 -o /dev/null \
+-		"https://www.gstatic.com/generate_204" >/dev/null 2>&1 || \
+-	curl -4 -kfsS --connect-timeout 4 --max-time 8 -o /dev/null \
+-		"https://cp.cloudflare.com/" >/dev/null 2>&1
++udp_listener_running() {
++	local port="$1"
++	busybox netstat -lnu 2>/dev/null | awk -v port="$port" \
++		'$4 ~ (":" port "$") { found=1 } END { exit !found }'
+ }
+@@ -86 +80,0 @@ MAX_CONSECUTIVE_FAILURES=3
+-PROXY_HEALTH_CHECK_EVERY=4
+@@ -131 +124,0 @@ kcp_param=$(uci_get_by_name $GLOBAL_SERVER kcp_param)
+-proxy_health_tick=0
+@@ -141 +133 @@ while [ "1" == "1" ]; do
+-		local tcp_expected="$redir_tcp_process"
++		tcp_expected="$redir_tcp_process"
+@@ -157 +149 @@ while [ "1" == "1" ]; do
+-		local udp_expected="$redir_udp_process"
++		udp_expected="$redir_udp_process"
+@@ -205,0 +198,3 @@ while [ "1" == "1" ]; do
++		if ! udp_listener_running "$dns_port"; then
++			recover_or_fail_open "DNS2TCP local proxy DNS listener is unavailable"
++		fi
+@@ -221,0 +217,3 @@ while [ "1" == "1" ]; do
++		if ! udp_listener_running "$tmp_dns_port" || ! udp_listener_running "$dns_port"; then
++			recover_or_fail_open "ChinaDNS-NG proxy DNS listener is unavailable"
++		fi
+@@ -238,0 +238,3 @@ while [ "1" == "1" ]; do
++			if ! udp_listener_running "$china_dns_port"; then
++				recover_or_fail_open "ChinaDNS-NG domestic DNS listener is unavailable"
++			fi
+@@ -241,12 +244,3 @@ while [ "1" == "1" ]; do
+-	proxy_health_tick=$((proxy_health_tick + 1))
+-	if proxy_path_health_required; then
+-		if [ "$proxy_health_tick" -ge "$PROXY_HEALTH_CHECK_EVERY" ]; then
+-			proxy_health_tick=0
+-			if ! proxy_path_healthy; then
+-				recover_or_fail_open "transparent proxy data path is unavailable"
+-			fi
+-			rm -f "$FAIL_STATE_FILE"
+-		fi
+-	else
+-		rm -f "$FAIL_STATE_FILE"
+-	fi
++	# External websites are not hard health dependencies. Structural failures
++	# still fail open, while a bad node cannot disrupt domestic traffic or DHCP.
++	rm -f "$FAIL_STATE_FILE"
