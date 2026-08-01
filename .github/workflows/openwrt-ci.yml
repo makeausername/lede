@@ -443,6 +443,12 @@ jobs:
             "$runtime_root/tmp/test-subscription-runtime-target.lua"
           sudo install -m 0644 custom/tests/offline-luci-model-uci.lua \
             "$runtime_root/tmp/offline-luci-model-uci.lua"
+          # The extracted SquashFS has not run the package's first-boot UCI
+          # installer yet. Seed the exact on-image template that a flashed
+          # router copies into /etc/config before exercising the runtime.
+          sudo install -m 0600 \
+            "$runtime_root/usr/share/shadowsocksr/shadowsocksr.config" \
+            "$runtime_root/etc/config/shadowsocksr"
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua -e '
             local fs = require("nixio.fs")
             local path = "/tmp/hkc-nixio-chmod-test"

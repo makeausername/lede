@@ -95,6 +95,11 @@ jobs:
             "$runtime_root/tmp/test-subscription-runtime.lua"
           sudo install -m 0644 custom/tests/test-subscription-runtime-target.lua \
             "$runtime_root/tmp/test-subscription-runtime-target.lua"
+          # Mirror the package's first-boot install step. The raw SquashFS
+          # contains an empty /etc/config file until this template is copied.
+          sudo install -m 0600 \
+            "$runtime_root/usr/share/shadowsocksr/shadowsocksr.config" \
+            "$runtime_root/etc/config/shadowsocksr"
 
           target_lua() {
             sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
