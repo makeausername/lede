@@ -110,7 +110,11 @@ jobs:
               /sbin/uci "$@"
           }
           target_xray() {
-            sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
+            # Go 1.26 ARM64 binaries can trip a QEMU user-mode concurrency
+            # bug while initializing encoding/json. A real router is not
+            # emulated; serialize only this offline target validation.
+            sudo env GOMAXPROCS=1 chroot "$runtime_root" \
+              /usr/bin/qemu-aarch64-static \
               /usr/bin/xray "$@"
           }
 

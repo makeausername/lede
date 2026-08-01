@@ -502,11 +502,14 @@ jobs:
             "$runtime_root/tmp/xray-vless-tcp.json"
           sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
             "$runtime_root/tmp/xray-vless-udp.json"
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+          sudo env GOMAXPROCS=1 chroot "$runtime_root" \
+            /usr/bin/qemu-aarch64-static /usr/bin/xray \
             run -test -c /tmp/xray-vless-tcp.json
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+          sudo env GOMAXPROCS=1 chroot "$runtime_root" \
+            /usr/bin/qemu-aarch64-static /usr/bin/xray \
             run -test -c /tmp/xray-vless-udp.json
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/xray \
+          sudo env GOMAXPROCS=1 chroot "$runtime_root" \
+            /usr/bin/qemu-aarch64-static /usr/bin/xray \
             run -c /tmp/xray-vless-tcp.json >"$inspect_dir/xray-runtime.log" 2>&1 &
           xray_pid=$!
           listener_ready=0
