@@ -502,15 +502,23 @@ jobs:
             "$runtime_root/tmp/xray-vless-tcp.json"
           sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
             "$runtime_root/tmp/xray-vless-udp.json"
-          sudo env GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 chroot "$runtime_root" \
-            /usr/bin/qemu-aarch64-static /usr/bin/xray \
-            run -test -c /tmp/xray-vless-tcp.json
-          sudo env GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 chroot "$runtime_root" \
-            /usr/bin/qemu-aarch64-static /usr/bin/xray \
-            run -test -c /tmp/xray-vless-udp.json
-          sudo env GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 chroot "$runtime_root" \
-            /usr/bin/qemu-aarch64-static /usr/bin/xray \
-            run -c /tmp/xray-vless-tcp.json >"$inspect_dir/xray-runtime.log" 2>&1 &
+          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
+            /usr/bin/xray version | grep -F 'Xray 26.6.1'
+
+          xray_validator="$inspect_dir/xray-validator"
+          mkdir -p "$xray_validator"
+          curl --fail --location --silent --show-error \
+            https://github.com/XTLS/Xray-core/releases/download/v26.6.1/Xray-linux-64.zip \
+            --output "$xray_validator/Xray-linux-64.zip"
+          echo '136e822e99e616692550723e8b607cd8858c62a390aea5704938bc27930904ba  '"$xray_validator/Xray-linux-64.zip" \
+            | sha256sum --check --strict
+          unzip -q "$xray_validator/Xray-linux-64.zip" -d "$xray_validator"
+          "$xray_validator/xray" version | grep -F 'Xray 26.6.1'
+          export XRAY_LOCATION_ASSET="$xray_validator"
+          "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-tcp.json"
+          "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-udp.json"
+          "$xray_validator/xray" run -c "$inspect_dir/xray-vless-tcp.json" \
+            >"$inspect_dir/xray-runtime.log" 2>&1 &
           xray_pid=$!
           listener_ready=0
           for _ in $(seq 1 20); do

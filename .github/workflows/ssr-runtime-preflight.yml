@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 20
     env:
       HELLOWORLD_REV: 737e5d719030363dbf96224c9f065afa5ea6dba8
+      XRAY_VERSION: 26.6.1
+      XRAY_LINUX64_SHA256: 136e822e99e616692550723e8b607cd8858c62a390aea5704938bc27930904ba
 
     steps:
       - name: Checkout validation source
@@ -34,7 +36,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            qemu-user-static squashfs-tools
+            curl qemu-user-static squashfs-tools unzip
 
       - name: Prepare current patched SSR source
         shell: bash
@@ -53,6 +55,19 @@ jobs:
           done
           sh custom/tests/test-ssr-production.sh \
             .preflight-helloworld/luci-app-ssr-plus
+
+      - name: Prepare matching native Xray validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .preflight-xray
+          curl --fail --location --silent --show-error \
+            "https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-64.zip" \
+            --output .preflight-xray/Xray-linux-64.zip
+          echo "${XRAY_LINUX64_SHA256}  .preflight-xray/Xray-linux-64.zip" \
+            | sha256sum --check --strict
+          unzip -q .preflight-xray/Xray-linux-64.zip -d .preflight-xray
+          .preflight-xray/xray version | grep -F "Xray ${XRAY_VERSION}"
 
       - name: Validate current SSR on extracted ARM64 firmware
         shell: bash
@@ -110,11 +125,7 @@ jobs:
               /sbin/uci "$@"
           }
           target_xray() {
-            # Go 1.26 ARM64 binaries can trip a QEMU user-mode concurrency
-            # bug while initializing encoding/json. A real router is not
-            # emulated; serialize only this offline target validation.
-            sudo env GOMAXPROCS=1 GODEBUG=asyncpreemptoff=1 \
-              chroot "$runtime_root" \
+            sudo chroot "$runtime_root" \
               /usr/bin/qemu-aarch64-static \
               /usr/bin/xray "$@"
           }
@@ -161,10 +172,14 @@ jobs:
             "$runtime_root/tmp/xray-vless-tcp.json"
           sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
             "$runtime_root/tmp/xray-vless-udp.json"
-          target_xray run -test -c /tmp/xray-vless-tcp.json
-          target_xray run -test -c /tmp/xray-vless-udp.json
+          target_xray version | grep -F "Xray ${XRAY_VERSION}"
 
-          target_xray run -c /tmp/xray-vless-tcp.json \
+          host_xray="$GITHUB_WORKSPACE/.preflight-xray/xray"
+          export XRAY_LOCATION_ASSET="$GITHUB_WORKSPACE/.preflight-xray"
+          "$host_xray" run -test -c "$inspect_dir/xray-vless-tcp.json"
+          "$host_xray" run -test -c "$inspect_dir/xray-vless-udp.json"
+
+          "$host_xray" run -c "$inspect_dir/xray-vless-tcp.json" \
             >"$inspect_dir/xray-runtime.log" 2>&1 &
           xray_pid=$!
           listener_ready=0
