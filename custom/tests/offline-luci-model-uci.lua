@@ -32,6 +32,22 @@ local function wrap(raw)
 		return value
 	end
 
+	function proxy:section(config, section_type, name, values)
+		local sid = name
+		if sid then
+			raw:set(config, sid, section_type)
+		else
+			sid = raw:add(config, section_type)
+		end
+		if not sid then
+			return nil
+		end
+		for option, value in pairs(values or {}) do
+			raw:set(config, sid, option, value)
+		end
+		return sid
+	end
+
 	return setmetatable(proxy, {
 		__index = function(_, key)
 			local value = raw[key]
