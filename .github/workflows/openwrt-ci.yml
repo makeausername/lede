@@ -147,7 +147,11 @@ jobs:
           grep -Fq 'if ! start_dns; then' "$ssr_init"
           grep -Fq 'run -test -c "$tcp_config_file"' "$ssr_init"
           grep -Fq 'enter_fail_open' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen running'" "$ssr_init"
+          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' \
+            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+          grep -Fq "option fragment_packets 'tlshello'" \
+            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
           grep -Fq 'udp_listener_running' "$ssr_monitor"
@@ -203,6 +207,11 @@ jobs:
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
+          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment='1'" "$defaults"
+          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_packets='tlshello'" "$defaults"
+          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_length='100-200'" "$defaults"
+          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_delay='10-20'" "$defaults"
+          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_maxSplit='100-200'" "$defaults"
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -421,7 +430,8 @@ jobs:
           grep -Fq 'run -test -c "$udp_config_file"' "$ssr_init"
           grep -Fq 'start_udp || return 1' "$ssr_init"
           grep -Fq 'busybox netstat -lnt' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen running'" "$ssr_init"
+          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' "$ssr_generator"
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'udp_listener_running' "$ssr_monitor"
           grep -Fq 'DNS2TCP local proxy DNS listener is unavailable' "$ssr_monitor"

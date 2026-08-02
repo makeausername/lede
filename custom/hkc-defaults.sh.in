@@ -119,6 +119,18 @@ uci -q set shadowsocksr.@global[0].chinadns_ng_proto='tcp'
 uci -q set shadowsocksr.@global[0].chinadns_ng_tunnel_forward='8.8.8.8:53'
 uci -q set shadowsocksr.@global[0].chinadns_forward='223.5.5.5:53'
 
+# The N60 Pro live acceptance matrix showed that an intact REALITY ClientHello
+# is intercepted on this deployment path, while Xray's tlshello fragmentation
+# completes both router-local and LAN-client traffic without certificate errors.
+if ! uci -q get shadowsocksr.@global_xray_fragment[0] >/dev/null 2>&1; then
+	uci -q add shadowsocksr global_xray_fragment >/dev/null
+fi
+uci -q set shadowsocksr.@global_xray_fragment[0].fragment='1'
+uci -q set shadowsocksr.@global_xray_fragment[0].fragment_packets='tlshello'
+uci -q set shadowsocksr.@global_xray_fragment[0].fragment_length='100-200'
+uci -q set shadowsocksr.@global_xray_fragment[0].fragment_delay='10-20'
+uci -q set shadowsocksr.@global_xray_fragment[0].fragment_maxSplit='100-200'
+
 forced_domains='/usr/share/hkc/forced-proxy-domains.list'
 blacklist='/etc/ssrplus/black.list'
 mkdir -p /etc/ssrplus
