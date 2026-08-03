@@ -18,8 +18,11 @@ package.loaded["luci.sys"] = {
 	end
 }
 
-local uci = require("uci")
-package.loaded["luci.model.uci"] = { cursor = function() return uci.cursor(config_dir) end }
+-- Use the same native-libuci adapter installed by the workflow. The raw
+-- libuci cursor intentionally lacks LuCI helpers such as get_first(), while
+-- production hkc_connect runs against luci.model.uci and relies on them.
+local uci = dofile("/tmp/offline-luci-model-uci.lua")
+package.loaded["luci.model.uci"] = uci
 local model = require("luci.model.hkc_connect")
 local cursor = uci.cursor(config_dir)
 
