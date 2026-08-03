@@ -14,7 +14,9 @@ package.loaded["luci.sys"] = {
 			and command:match(" /etc/config/shadowsocksr$") then
 			return fs.writefile(config_dir .. "/shadowsocksr", fs.readfile("/tmp/hkc-connect/shadowsocksr.before-connect")) and 0 or 1
 		end
-		if command:match("shadowsocksr running") then return _G.hkc_running and 0 or 1 end
+		if command:match("pidof xray") or command:match("busybox netstat %-lnt") then
+			return _G.hkc_running and 0 or 1
+		end
 		if command:match("shadowsocksr restart") or command:match("hkc%-connect%-schedule") or command:match("shadowsocksr failopen") then return 0 end
 		return 0
 	end
@@ -47,6 +49,7 @@ assert(found and found.name == "Synthetic line" and found.protocol == "VLESS")
 _G.hkc_running = true
 local ok, err = model.connect("hkc_test_node")
 assert(ok, err)
+assert(model.is_running(), "healthy Xray process and listener were not detected")
 cursor = uci.cursor(config_dir)
 assert(cursor:get_first("shadowsocksr", "global", "global_server") == "hkc_test_node")
 assert(cursor:get("hkc_connect", "main", "last_server") == "hkc_test_node")
@@ -56,6 +59,7 @@ cursor:set("shadowsocksr", "hkc_bad_node", "alias", "Rollback line")
 cursor:set("shadowsocksr", "hkc_bad_node", "type", "v2ray")
 cursor:commit("shadowsocksr")
 _G.hkc_running = false
+assert(not model.is_running(), "missing Xray listener was reported as healthy")
 local failed, failure = model.connect("hkc_bad_node")
 assert(not failed and failure == "runtime_validation_failed")
 cursor = uci.cursor(config_dir)

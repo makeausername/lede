@@ -11,8 +11,6 @@ init="$root/root/etc/init.d/shadowsocksr"
 monitor="$root/root/usr/bin/ssr-monitor"
 generator="$root/root/usr/share/shadowsocksr/gen_config.lua"
 subscribe="$root/root/usr/share/shadowsocksr/subscribe.lua"
-defaults="$root/root/etc/uci-defaults/luci-ssr-plus"
-package_config="$root/root/usr/share/shadowsocksr/shadowsocksr.config"
 
 require_text() {
 	needle="$1"
@@ -66,15 +64,12 @@ require_text 'set -- "$@" -t "$chinadns_ng_server"' "$init"
 require_text 'ChinaDNS-NG failed to open proxy DNS listeners' "$init"
 require_text 'DNS2TCP failed to open the local proxy DNS listener' "$init"
 reject_text '"$dnsserver" -N --filter-qtype' "$init"
-require_text "EXTRA_COMMANDS='reset clash_cache failopen running'" "$init"
-require_text 'running() {' "$init"
-require_text 'pidof xray >/dev/null 2>&1 || return 1' "$init"
-require_text 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' "$generator"
-reject_text 'local socks_port     = arg[4] or "0"' "$generator"
-require_text "option fragment '1'" "$package_config"
-require_text "option fragment_packets 'tlshello'" "$package_config"
-require_text "fragment_packets='tlshello'" "$defaults"
-require_text "fragment_maxSplit='100-200'" "$defaults"
+require_text "EXTRA_COMMANDS='reset clash_cache failopen'" "$init"
+if grep -Fqx 'running() {' "$init"; then
+	echo "forbidden private running command remains in $init" >&2
+	exit 1
+fi
+require_text 'local socks_port     = arg[4] or "0"' "$generator"
 
 test "$(grep -Fc 'tproxy = (proto == "udp") and "tproxy" or "redirect"' "$generator")" -ge 2
 require_text 'tcp_listener_running' "$monitor"

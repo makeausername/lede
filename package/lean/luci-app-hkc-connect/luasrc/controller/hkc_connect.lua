@@ -183,7 +183,7 @@ function api_logout()
 end
 
 function index()
-	local root = entry({ "hkc-connect" }, call("action_index"), "HKC Connect", 1)
+	local root = entry({ "hkc-connect" }, call("action_index"), nil, 1)
 	root.sysauth = false
 	root.leaf = false
 

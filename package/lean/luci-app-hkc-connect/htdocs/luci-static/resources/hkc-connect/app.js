@@ -168,18 +168,22 @@
 		finally { busy = false; renderStatus(); }
 	}
 
+	async function waitForSync() {
+		let result = { state: "running" };
+		for (let i = 0; i < 60 && ["queued", "running", "busy"].includes(result.state); i += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			result = await request("sync/status");
+		}
+		if (result.state !== "success") throw new Error("sync_failed");
+		await loadAll(); $("syncMessage").textContent = t("updateSuccess"); notify(t("updateSuccess"));
+	}
+
 	async function syncLines() {
 		if (busy) return;
 		busy = true; $("syncMessage").textContent = t("updating"); renderStatus();
 		try {
 			await request("sync", { method: "POST", body: "{}" });
-			let result = { state: "running" };
-			for (let i = 0; i < 60 && ["queued", "running", "busy"].includes(result.state); i += 1) {
-				await new Promise((resolve) => setTimeout(resolve, 1000));
-				result = await request("sync/status");
-			}
-			if (result.state !== "success") throw new Error("sync_failed");
-			await loadAll(); $("syncMessage").textContent = t("updateSuccess"); notify(t("updateSuccess"));
+			await waitForSync();
 		} catch (error) { $("syncMessage").textContent = t("updateFailed"); notify(t("updateFailed"), true); }
 		finally { busy = false; renderStatus(); }
 	}
@@ -197,7 +201,8 @@
 			event.preventDefault(); const button = event.submitter; button.disabled = true;
 			try {
 				await request("login", { method: "POST", body: JSON.stringify({ email: $("email").value, password: $("password").value, mfaCode: $("mfaCode").value }) });
-				$("password").value = ""; showApp(); await loadAll(); syncLines();
+				$("password").value = ""; showApp(); await loadAll();
+				waitForSync().catch(() => { $("syncMessage").textContent = t("updateFailed"); });
 			} catch (error) { notify(friendlyError(error), true); }
 			finally { button.disabled = false; }
 		});

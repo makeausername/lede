@@ -106,6 +106,8 @@ jobs:
           done
           test "$(grep -Fc 'id="modemenu"' \
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
+          grep -Fq 'hidden aria-hidden="true" style="display:none!important"' \
+            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut
 
           for patch in custom/patches/packages/*.patch; do
             git -C feeds/packages apply --check "../../${patch}"
@@ -148,10 +150,13 @@ jobs:
           grep -Fq 'if ! start_dns; then' "$ssr_init"
           grep -Fq 'run -test -c "$tcp_config_file"' "$ssr_init"
           grep -Fq 'enter_fail_open' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen running'" "$ssr_init"
-          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' \
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          ! grep -Fqx 'running() {' "$ssr_init"
+          grep -Fq 'local socks_port     = arg[4] or "0"' \
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
-          grep -Fq "option fragment_packets 'tlshello'" \
+          grep -Fq "option fragment '0'" \
+            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
+          ! grep -Fq "option fragment_packets 'tlshello'" \
             feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
@@ -210,11 +215,8 @@ jobs:
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
-          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment='1'" "$defaults"
-          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_packets='tlshello'" "$defaults"
-          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_length='100-200'" "$defaults"
-          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_delay='10-20'" "$defaults"
-          grep -Fq "shadowsocksr.@global_xray_fragment[0].fragment_maxSplit='100-200'" "$defaults"
+          ! grep -Fq 'global_xray_fragment' "$defaults"
+          ! grep -Fq 'tlshello' "$defaults"
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -359,6 +361,8 @@ jobs:
           ssr_monitor="$inspect_dir/ssr-monitor"
           ssr_generator="$inspect_dir/gen-config.lua"
           ssr_subscribe="$inspect_dir/subscribe.lua"
+          ssr_package_config="$inspect_dir/shadowsocksr.config"
+          ssr_package_defaults="$inspect_dir/luci-ssr-plus-defaults"
           hkc_model="$inspect_dir/hkc-connect-model.lua"
           hkc_controller="$inspect_dir/hkc-connect-controller.lua"
           hkc_view="$inspect_dir/hkc-connect-index.htm"
@@ -381,6 +385,8 @@ jobs:
           unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/gen_config.lua >"$ssr_generator"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/subscribe.lua >"$ssr_subscribe"
+          unsquashfs -cat "$root_image" usr/share/shadowsocksr/shadowsocksr.config >"$ssr_package_config"
+          unsquashfs -cat "$root_image" etc/uci-defaults/luci-ssr-plus >"$ssr_package_defaults"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/model/hkc_connect.lua >"$hkc_model"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/controller/hkc_connect.lua >"$hkc_controller"
           unsquashfs -cat "$root_image" usr/lib/lua/luci/view/hkc_connect/index.htm >"$hkc_view"
@@ -403,6 +409,8 @@ jobs:
           test -s "$ssr_monitor"
           test -s "$ssr_generator"
           test -s "$ssr_subscribe"
+          test -s "$ssr_package_config"
+          test -s "$ssr_package_defaults"
           test -s "$hkc_model"
           test -s "$hkc_controller"
           test -s "$hkc_view"
@@ -447,6 +455,7 @@ jobs:
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
           test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
+          grep -Fq 'hidden aria-hidden="true" style="display:none!important"' "$argon_footer"
           sh -n "$ssr_init"
           sh -n "$ssr_monitor"
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
@@ -456,8 +465,12 @@ jobs:
           grep -Fq 'run -test -c "$udp_config_file"' "$ssr_init"
           grep -Fq 'start_udp || return 1' "$ssr_init"
           grep -Fq 'busybox netstat -lnt' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen running'" "$ssr_init"
-          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' "$ssr_generator"
+          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
+          ! grep -Fqx 'running() {' "$ssr_init"
+          grep -Fq 'local socks_port     = arg[4] or "0"' "$ssr_generator"
+          grep -Fq "option fragment '0'" "$ssr_package_config"
+          ! grep -Fq "option fragment_packets 'tlshello'" "$ssr_package_config"
+          ! grep -Fq "fragment_packets='tlshello'" "$ssr_package_defaults"
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'udp_listener_running' "$ssr_monitor"
           grep -Fq 'DNS2TCP local proxy DNS listener is unavailable' "$ssr_monitor"
@@ -482,7 +495,10 @@ jobs:
           grep -Fq 'subscription_runtime.ensure_main_server(ucic)' "$ssr_subscribe"
           grep -Fq 'storage.replace(cursor, url)' "$hkc_model"
           grep -Fq 'cursor:set(SSR_CONFIG, global_sid, "global_server", sid)' "$hkc_model"
-          grep -Fq '/etc/init.d/shadowsocksr running' "$hkc_model"
+          grep -Fq 'pidof xray' "$hkc_model"
+          grep -Fq 'busybox netstat -lnt' "$hkc_model"
+          ! grep -Fq '/etc/init.d/shadowsocksr running' "$hkc_model"
+          grep -Fq 'application/x-www-form-urlencoded' "$hkc_model"
           grep -Fq 'SSR_BACKUP_FILE' "$hkc_model"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$hkc_model"
           ! grep -Eq 'iptables[[:space:]]+-|ip6tables[[:space:]]+-|nft[[:space:]]+' "$hkc_model"

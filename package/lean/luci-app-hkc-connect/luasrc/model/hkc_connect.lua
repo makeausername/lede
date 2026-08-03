@@ -108,7 +108,21 @@ local function panel_url()
 	return value
 end
 
-local function curl_json(path, method, payload, bearer)
+local function form_encode(payload)
+	local function encode(value)
+		return (tostring(value or ""):gsub("([^%w%-_%.~])", function(char)
+			return string.format("%%%02X", string.byte(char))
+		end))
+	end
+	local fields = {}
+	for key, value in pairs(payload or {}) do
+		fields[#fields + 1] = encode(key) .. "=" .. encode(value)
+	end
+	table.sort(fields)
+	return table.concat(fields, "&")
+end
+
+local function curl_json(path, method, payload, bearer, body_format)
 	local base = panel_url()
 	if not base then
 		return nil, "invalid_panel_url", 500
@@ -119,17 +133,26 @@ local function curl_json(path, method, payload, bearer)
 	if not nonce then
 		return nil, "random_unavailable", 500
 	end
-	local request_file = RUNTIME_DIR .. "/request-" .. nonce:sub(1, 12) .. ".json"
+	local request_file = RUNTIME_DIR .. "/request-" .. nonce:sub(1, 12) .. ".body"
 	local response_file = RUNTIME_DIR .. "/response-" .. nonce:sub(1, 12) .. ".json"
 	local auth_file = RUNTIME_DIR .. "/auth-" .. nonce:sub(1, 12) .. ".txt"
 	local has_body = method ~= "GET" and method ~= "HEAD"
 	if has_body then
-		local request_body = payload or {}
-		local ok, encoded = pcall(json.stringify, request_body)
-		if not ok or not fs.writefile(request_file, encoded) then
+		local encoded
+		if body_format == "form" then
+			encoded = form_encode(payload)
+		else
+			local ok
+			ok, encoded = pcall(json.stringify, payload or {})
+			if not ok then encoded = nil end
+		end
+		if type(encoded) ~= "string" or not fs.writefile(request_file, encoded) then
 			return nil, "request_encode_failed", 500
 		end
-		fs.chmod(request_file, 600)
+		if not fs.chmod(request_file, 600) then
+			fs.remove(request_file)
+			return nil, "request_permissions_failed", 500
+		end
 	end
 
 	local auth = ""
@@ -138,16 +161,23 @@ local function curl_json(path, method, payload, bearer)
 			if has_body then fs.remove(request_file) end
 			return nil, "auth_header_failed", 500
 		end
-		fs.chmod(auth_file, 600)
+		if not fs.chmod(auth_file, 600) then
+			fs.remove(auth_file)
+			if has_body then fs.remove(request_file) end
+			return nil, "auth_permissions_failed", 500
+		end
 		auth = " --header @" .. util.shellquote(auth_file)
 	end
 	local body_argument = has_body and ("--data-binary @" .. util.shellquote(request_file)) or ""
+	local content_type = body_format == "form"
+		and "application/x-www-form-urlencoded"
+		or "application/json"
 	local command = table.concat({
 		"curl --silent --show-error --location --max-redirs 2",
 		"--proto '=https' --proto-redir '=https' --tlsv1.2",
 		"--connect-timeout 10 --max-time 25",
 		"--request", util.shellquote(method or "GET"),
-		"-H 'Accept: application/json' -H 'Content-Type: application/json'",
+		"-H 'Accept: application/json' -H " .. util.shellquote("Content-Type: " .. content_type),
 		auth,
 		body_argument,
 		"--output " .. util.shellquote(response_file),
@@ -255,7 +285,7 @@ function M.login(email, password, mfa_code)
 		password = password,
 		mfa_code = mfa_code,
 		device_name = "HKC-router"
-	})
+	}, nil, "form")
 	password = nil
 	if not data then
 		return nil, err, status
@@ -382,15 +412,45 @@ local function selected_node(cursor)
 	}
 end
 
+local function selected_runtime_healthy()
+	local cursor = config_cursor()
+	local sid = cursor:get_first(SSR_CONFIG, "global", "global_server", "nil")
+	if sid == "nil" or cursor:get(SSR_CONFIG, sid) ~= "servers" then
+		return false
+	end
+
+	local node_type = trim(cursor:get(SSR_CONFIG, sid, "type"))
+	if node_type == "v2ray" then
+		local port = tostring(cursor:get_first(SSR_CONFIG, "global", "default_node_local_port", "1234"))
+		if not port:match("^%d+$") then
+			return false
+		end
+		if sys.call("pidof xray >/dev/null 2>&1") ~= 0 then
+			return false
+		end
+		local listener = "busybox netstat -lnt 2>/dev/null | awk " ..
+			util.shellquote('$6 == "LISTEN" && $4 ~ /:' .. port .. '$/ { found=1 } END { exit !found }')
+		return sys.call(listener) == 0
+	end
+
+	return sys.call("ps w 2>/dev/null | grep -E '[s]sr-retcp|[s]s-redir|[s]sr-redir|[i]pt2socks|[m]ihomo|[t]uic-client' >/dev/null 2>&1") == 0
+end
+
 function M.is_running()
-	return sys.call("/etc/init.d/shadowsocksr running >/dev/null 2>&1") == 0
+	return selected_runtime_healthy()
 end
 
 local function restart_and_validate()
 	if sys.call("/etc/init.d/shadowsocksr restart >/dev/null 2>&1") ~= 0 then
 		return false
 	end
-	return sys.call("sh -c 'i=0; while [ $i -lt 25 ]; do /etc/init.d/shadowsocksr running >/dev/null 2>&1 && exit 0; i=$((i+1)); sleep 1; done; exit 1'") == 0
+	for _ = 1, 25 do
+		if selected_runtime_healthy() then
+			return true
+		end
+		sys.call("sleep 1")
+	end
+	return false
 end
 
 function M.connect(sid)
