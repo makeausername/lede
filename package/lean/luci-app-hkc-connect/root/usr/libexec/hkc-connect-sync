@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -eu
+
+RUNTIME_DIR='/tmp/hkc-connect'
+STATUS_FILE="$RUNTIME_DIR/sync-status.json"
+LOCK_FILE='/var/lock/hkc-connect-sync.lock'
+LOG_FILE='/var/log/ssrplus.log'
+
+mkdir -p "$RUNTIME_DIR" /var/lock
+chmod 0700 "$RUNTIME_DIR"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+	printf '{"state":"busy"}\n' > "$STATUS_FILE"
+	exit 0
+fi
+
+printf '{"state":"running"}\n' > "$STATUS_FILE"
+
+if [ -d /var/run/ssrplusupdate.lock ]; then
+	printf '{"state":"busy"}\n' > "$STATUS_FILE"
+	exit 0
+fi
+
+if /usr/share/shadowsocksr/ssrplusupdate.sh >>"$LOG_FILE" 2>&1; then
+	now="$(date +%s)"
+	uci -q set hkc_connect.main.last_update="$now"
+	uci -q set hkc_connect.main.last_update_status='success'
+	uci -q commit hkc_connect
+	printf '{"state":"success","updatedAt":%s}\n' "$now" > "$STATUS_FILE"
+	exit 0
+fi
+
+uci -q set hkc_connect.main.last_update_status='failed'
+uci -q commit hkc_connect
+printf '{"state":"failed"}\n' > "$STATUS_FILE"
+exit 1

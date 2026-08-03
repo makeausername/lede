@@ -1,0 +1,4 @@
+#!/bin/sh
+
+/usr/libexec/hkc-connect-schedule
+exit 0
