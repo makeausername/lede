@@ -76,7 +76,10 @@ assert(cursor:get_first("shadowsocksr", "global", "monitor_enable", "1") == old_
 assert(cursor:get("hkc_connect", "main", "domestic_protection") == old_monitor,
 	"failed settings restart did not restore HKC Connect policy")
 
-fs.writefile("/var/run/ssrplus.fail-open", "1\n")
+-- The extracted offline root does not run OpenWrt's boot sequence, so create
+-- the volatile run directory that is present on a booted router.
+assert(fs.mkdirr("/var/run"), "failed to prepare runtime state directory")
+assert(fs.writefile("/var/run/ssrplus.fail-open", "1\n"), "failed to create fail-open marker")
 local protected_status = model.status()
 assert(protected_status.running == false and protected_status.connectionState == "protected",
 	"fail-open state is not reported truthfully")
