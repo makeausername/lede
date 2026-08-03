@@ -261,7 +261,6 @@ jobs:
           require_config 'CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
           require_config 'CONFIG_PACKAGE_luci-app-hkc-connect=y'
-          require_config 'CONFIG_BUSYBOX_CONFIG_FLOCK=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ChinaDNS_NG=y'
