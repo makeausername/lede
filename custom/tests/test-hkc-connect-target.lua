@@ -9,7 +9,9 @@ package.loaded["luci.sys"] = {
 			fs.mkdirr("/tmp/hkc-connect")
 			return fs.writefile("/tmp/hkc-connect/shadowsocksr.before-connect", fs.readfile(config_dir .. "/shadowsocksr")) and 0 or 1
 		end
-		if command:match("^cp %-f /tmp/hkc%-connect/shadowsocksr%.before%-connect /etc/config/shadowsocksr") then
+		if command:match("^cp %-f ")
+			and command:find("/tmp/hkc-connect/shadowsocksr.before-connect", 1, true)
+			and command:match(" /etc/config/shadowsocksr$") then
 			return fs.writefile(config_dir .. "/shadowsocksr", fs.readfile("/tmp/hkc-connect/shadowsocksr.before-connect")) and 0 or 1
 		end
 		if command:match("shadowsocksr running") then return _G.hkc_running and 0 or 1 end
