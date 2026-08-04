@@ -113,14 +113,6 @@ jobs:
             "$runtime_root/tmp/test-subscription-runtime.lua"
           sudo install -m 0644 custom/tests/test-subscription-runtime-target.lua \
             "$runtime_root/tmp/test-subscription-runtime-target.lua"
-          sudo install -D -m 0644 \
-            package/lean/luci-app-hkc-connect/luasrc/model/hkc_connect.lua \
-            "$runtime_root/usr/lib/lua/luci/model/hkc_connect.lua"
-          sudo install -m 0644 custom/tests/test-hkc-connect-target.lua \
-            "$runtime_root/tmp/test-hkc-connect-target.lua"
-          sudo install -D -m 0600 \
-            package/lean/luci-app-hkc-connect/root/etc/config/hkc_connect \
-            "$runtime_root/etc/config/hkc_connect"
           # Mirror the package's first-boot install step. The raw SquashFS
           # contains an empty /etc/config file until this template is copied.
           sudo install -m 0600 \
@@ -151,7 +143,6 @@ jobs:
           target_lua /tmp/test-subscription-storage.lua
           target_lua /tmp/test-subscription-runtime.lua
           target_lua /tmp/test-subscription-runtime-target.lua
-          target_lua /tmp/test-hkc-connect-target.lua
 
           target_uci -q set shadowsocksr.hkc_runtime_vless=servers
           target_uci -q set shadowsocksr.hkc_runtime_vless.type='v2ray'

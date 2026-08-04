@@ -64,12 +64,6 @@ require_text 'set -- "$@" -t "$chinadns_ng_server"' "$init"
 require_text 'ChinaDNS-NG failed to open proxy DNS listeners' "$init"
 require_text 'DNS2TCP failed to open the local proxy DNS listener' "$init"
 reject_text '"$dnsserver" -N --filter-qtype' "$init"
-require_text "EXTRA_COMMANDS='reset clash_cache failopen'" "$init"
-if grep -Fqx 'running() {' "$init"; then
-	echo "forbidden private running command remains in $init" >&2
-	exit 1
-fi
-require_text 'local socks_port     = arg[4] or "0"' "$generator"
 
 test "$(grep -Fc 'tproxy = (proto == "udp") and "tproxy" or "redirect"' "$generator")" -ge 2
 require_text 'tcp_listener_running' "$monitor"

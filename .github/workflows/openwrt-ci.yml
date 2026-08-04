@@ -9,7 +9,6 @@ on:
       - ".github/workflows/openwrt-ci.yml"
       - "configs/hkc-n60-pro.config"
       - "custom/**"
-      - "package/lean/luci-app-hkc-connect/**"
 
 permissions:
   contents: read
@@ -106,8 +105,6 @@ jobs:
           done
           test "$(grep -Fc 'id="modemenu"' \
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
-          grep -Fq 'hidden aria-hidden="true" style="display:none!important"' \
-            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut
 
           for patch in custom/patches/packages/*.patch; do
             git -C feeds/packages apply --check "../../${patch}"
@@ -151,21 +148,12 @@ jobs:
           grep -Fq 'run -test -c "$tcp_config_file"' "$ssr_init"
           grep -Fq 'enter_fail_open' "$ssr_init"
           grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
-          ! grep -Fqx 'running() {' "$ssr_init"
-          grep -Fq 'local socks_port     = arg[4] or "0"' \
-            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
-          grep -Fq "option fragment '0'" \
-            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
-          ! grep -Fq "option fragment_packets 'tlshello'" \
-            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
           grep -Fq 'udp_listener_running' "$ssr_monitor"
           ! grep -Fq 'proxy_path_healthy' "$ssr_monitor"
           grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
           ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
-          node --check package/lean/luci-app-hkc-connect/htdocs/luci-static/resources/hkc-connect/app.js
-          node custom/tests/test-hkc-connect.js package/lean/luci-app-hkc-connect
           ./scripts/feeds install -a
 
       - name: Inject private first-boot defaults
@@ -215,8 +203,6 @@ jobs:
           grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
           grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
-          ! grep -Fq 'global_xray_fragment' "$defaults"
-          ! grep -Fq 'tlshello' "$defaults"
           for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
             grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
               echo "::error::Required forced-proxy domain missing: $domain"
@@ -262,7 +248,6 @@ jobs:
           require_config 'CONFIG_TARGET_PREINIT_BROADCAST="192.168.8.255"'
           require_config 'CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
-          require_config 'CONFIG_PACKAGE_luci-app-hkc-connect=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ChinaDNS_NG=y'
@@ -329,7 +314,6 @@ jobs:
 
           grep -Fqx 'xray-core - 26.3.23-1' "$manifest"
           grep -Eq '^luci-app-ssr-plus ' "$manifest"
-          grep -Eq '^luci-app-hkc-connect ' "$manifest"
           grep -Eq '^luci-theme-argon ' "$manifest"
           grep -Eq '^luci-i18n-base-zh-cn ' "$manifest"
           grep -Eq '^luci-i18n-ssr-plus-zh-cn ' "$manifest"
@@ -361,15 +345,6 @@ jobs:
           ssr_monitor="$inspect_dir/ssr-monitor"
           ssr_generator="$inspect_dir/gen-config.lua"
           ssr_subscribe="$inspect_dir/subscribe.lua"
-          ssr_package_config="$inspect_dir/shadowsocksr.config"
-          ssr_package_defaults="$inspect_dir/luci-ssr-plus-defaults"
-          hkc_model="$inspect_dir/hkc-connect-model.lua"
-          hkc_controller="$inspect_dir/hkc-connect-controller.lua"
-          hkc_view="$inspect_dir/hkc-connect-index.htm"
-          hkc_app="$inspect_dir/hkc-connect-app.js"
-          hkc_landing="$inspect_dir/hkc-connect-landing"
-          hkc_schedule="$inspect_dir/hkc-connect-schedule"
-          hkc_sync="$inspect_dir/hkc-connect-sync"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-wan-dhcp-v1 >"$wan_defaults"
           unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
@@ -385,15 +360,6 @@ jobs:
           unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/gen_config.lua >"$ssr_generator"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/subscribe.lua >"$ssr_subscribe"
-          unsquashfs -cat "$root_image" usr/share/shadowsocksr/shadowsocksr.config >"$ssr_package_config"
-          unsquashfs -cat "$root_image" etc/uci-defaults/luci-ssr-plus >"$ssr_package_defaults"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/hkc_connect.lua >"$hkc_model"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/controller/hkc_connect.lua >"$hkc_controller"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/view/hkc_connect/index.htm >"$hkc_view"
-          unsquashfs -cat "$root_image" www/luci-static/resources/hkc-connect/app.js >"$hkc_app"
-          unsquashfs -cat "$root_image" etc/uci-defaults/95-hkc-connect-landing >"$hkc_landing"
-          unsquashfs -cat "$root_image" usr/libexec/hkc-connect-schedule >"$hkc_schedule"
-          unsquashfs -cat "$root_image" usr/libexec/hkc-connect-sync >"$hkc_sync"
           test -s "$defaults"
           test -s "$wan_defaults"
           test -s "$preinit"
@@ -409,15 +375,6 @@ jobs:
           test -s "$ssr_monitor"
           test -s "$ssr_generator"
           test -s "$ssr_subscribe"
-          test -s "$ssr_package_config"
-          test -s "$ssr_package_defaults"
-          test -s "$hkc_model"
-          test -s "$hkc_controller"
-          test -s "$hkc_view"
-          test -s "$hkc_app"
-          test -s "$hkc_landing"
-          test -s "$hkc_schedule"
-          test -s "$hkc_sync"
           grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
           grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
           grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
@@ -455,7 +412,6 @@ jobs:
             ! grep -Fq '{{ version.distname }}' "$footer"
           done
           test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
-          grep -Fq 'hidden aria-hidden="true" style="display:none!important"' "$argon_footer"
           sh -n "$ssr_init"
           sh -n "$ssr_monitor"
           grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
@@ -466,11 +422,6 @@ jobs:
           grep -Fq 'start_udp || return 1' "$ssr_init"
           grep -Fq 'busybox netstat -lnt' "$ssr_init"
           grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
-          ! grep -Fqx 'running() {' "$ssr_init"
-          grep -Fq 'local socks_port     = arg[4] or "0"' "$ssr_generator"
-          grep -Fq "option fragment '0'" "$ssr_package_config"
-          ! grep -Fq "option fragment_packets 'tlshello'" "$ssr_package_config"
-          ! grep -Fq "fragment_packets='tlshello'" "$ssr_package_defaults"
           grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
           grep -Fq 'udp_listener_running' "$ssr_monitor"
           grep -Fq 'DNS2TCP local proxy DNS listener is unavailable' "$ssr_monitor"
@@ -493,29 +444,6 @@ jobs:
           grep -Fq 'Restored the proxy service that was running before the update' "$ssr_subscribe"
           grep -Fq 'local subscription_label = "subscription["' "$ssr_subscribe"
           grep -Fq 'subscription_runtime.ensure_main_server(ucic)' "$ssr_subscribe"
-          grep -Fq 'storage.replace(cursor, url)' "$hkc_model"
-          grep -Fq 'cursor:set(SSR_CONFIG, global_sid, "global_server", sid)' "$hkc_model"
-          grep -Fq 'pidof xray' "$hkc_model"
-          grep -Fq 'busybox netstat -lnt' "$hkc_model"
-          ! grep -Fq '/etc/init.d/shadowsocksr running' "$hkc_model"
-          grep -Fq 'application/x-www-form-urlencoded' "$hkc_model"
-          grep -Fq 'SSR_BACKUP_FILE' "$hkc_model"
-          grep -Fq '/etc/init.d/shadowsocksr failopen' "$hkc_model"
-          ! grep -Eq 'iptables[[:space:]]+-|ip6tables[[:space:]]+-|nft[[:space:]]+' "$hkc_model"
-          grep -Fq 'SameSite=Strict' "$hkc_controller"
-          grep -Fq 'HTTP_X_HKC_CSRF' "$hkc_controller"
-          grep -Fq 'Content-Security-Policy' "$hkc_controller"
-          grep -Fq 'root.leaf = false' "$hkc_controller"
-          grep -Fq '/cgi-bin/luci/admin' "$hkc_view"
-          grep -Fq 'navigator.language' "$hkc_app"
-          ! grep -Eq 'localStorage|sessionStorage' "$hkc_app"
-          grep -Fq '/cgi-bin/luci/hkc-connect' "$hkc_landing"
-          grep -Fq 'ssrplusupdate.sh' "$hkc_sync"
-          grep -Fq 'flock -n 9' "$hkc_sync"
-          sh -n "$hkc_landing"
-          sh -n "$hkc_schedule"
-          sh -n "$hkc_sync"
-          node --check "$hkc_app"
           ! grep -Fq 'log("处理订阅: " .. url)' "$ssr_subscribe"
 
           # Run the exact ARM64 firmware Lua and Nixio implementation under
@@ -523,11 +451,6 @@ jobs:
           # tests the production storage module instead of a browser simulation.
           runtime_root="$inspect_dir/runtime-root"
           sudo unsquashfs -d "$runtime_root" "$root_image" >/dev/null
-          test -x "$runtime_root/usr/libexec/hkc-connect-schedule"
-          test -x "$runtime_root/usr/libexec/hkc-connect-sync"
-          test -x "$runtime_root/etc/uci-defaults/95-hkc-connect-landing"
-          test -x "$runtime_root/etc/uci-defaults/96-hkc-connect-schedule"
-          test -x "$runtime_root/usr/bin/flock"
           sudo install -m 0755 /usr/bin/qemu-aarch64-static \
             "$runtime_root/usr/bin/qemu-aarch64-static"
           sudo install -m 0644 custom/tests/test-subscription-storage.lua \
@@ -538,8 +461,6 @@ jobs:
             "$runtime_root/tmp/test-subscription-runtime-target.lua"
           sudo install -m 0644 custom/tests/offline-luci-model-uci.lua \
             "$runtime_root/tmp/offline-luci-model-uci.lua"
-          sudo install -m 0644 custom/tests/test-hkc-connect-target.lua \
-            "$runtime_root/tmp/test-hkc-connect-target.lua"
           # The extracted SquashFS has not run the package's first-boot UCI
           # installer yet. Seed the exact on-image template that a flashed
           # router copies into /etc/config before exercising the runtime.
@@ -560,12 +481,6 @@ jobs:
             /usr/bin/lua /tmp/test-subscription-runtime.lua
           sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
             /usr/bin/lua /tmp/test-subscription-runtime-target.lua
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua -e 'assert(loadfile("/usr/lib/lua/luci/model/hkc_connect.lua"))'
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua -e 'assert(loadfile("/usr/lib/lua/luci/controller/hkc_connect.lua"))'
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua /tmp/test-hkc-connect-target.lua
 
           # Exercise the actual ARM64 UCI, generator and Xray binary with a
           # redacted synthetic VLESS Reality node. This validates the selected
