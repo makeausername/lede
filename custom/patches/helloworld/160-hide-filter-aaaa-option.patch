@@ -1,0 +1,11 @@
+diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua
+--- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua
++++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua
+@@ -163,7 +163,0 @@
+-o = s:option(Flag, "filter_aaaa", translate("Disable IPv6 for Overseas FQDN"))
+-o:depends("pdnsd_enable", "1")
+-o:depends("pdnsd_enable", "4")
+-o:depends("pdnsd_enable", "7")
+-o.rmempty = false
+-o.default = "1"
+-

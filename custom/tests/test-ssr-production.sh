@@ -11,6 +11,8 @@ init="$root/root/etc/init.d/shadowsocksr"
 monitor="$root/root/usr/bin/ssr-monitor"
 generator="$root/root/usr/share/shadowsocksr/gen_config.lua"
 subscribe="$root/root/usr/share/shadowsocksr/subscribe.lua"
+client="$root/luasrc/model/cbi/shadowsocksr/client.lua"
+defaults="$root/root/usr/share/shadowsocksr/shadowsocksr.config"
 
 require_text() {
 	needle="$1"
@@ -32,6 +34,10 @@ reject_text() {
 
 test -s "$storage"
 test -s "$runtime"
+test -s "$client"
+test -s "$defaults"
+reject_text 's:option(Flag, "filter_aaaa"' "$client"
+require_text "option filter_aaaa '1'" "$defaults"
 require_text 'local subscription_storage = require "luci.model.shadowsocksr.subscription_storage"' "$servers"
 require_text 'Value, "_classic_subscribe_url"' "$servers"
 require_text 'subscription_storage.get(self.map.uci)' "$servers"
