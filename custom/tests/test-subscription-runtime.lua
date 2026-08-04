@@ -65,11 +65,11 @@ end
 
 local first = Cursor.new({ global_with("nil"), server("node_a") })
 local selected, changed, reason = runtime.ensure_main_server(first)
-assert(selected == "node_a" and changed and reason == "selected-first")
-assert(first:get("shadowsocksr", "global", "global_server") == "node_a")
+assert(selected == nil and not changed and reason == "disabled")
+assert(first:get("shadowsocksr", "global", "global_server") == "nil")
 
 selected, changed, reason = runtime.ensure_main_server(first)
-assert(selected == "node_a" and not changed and reason == "preserved")
+assert(selected == nil and not changed and reason == "disabled")
 
 local preserved = Cursor.new({ global_with("node_b"), server("node_a"), server("node_b") })
 selected, changed, reason = runtime.ensure_main_server(preserved)
@@ -77,11 +77,12 @@ assert(selected == "node_b" and not changed and reason == "preserved")
 
 local stale = Cursor.new({ global_with("removed_node"), server("replacement") })
 selected, changed, reason = runtime.ensure_main_server(stale)
-assert(selected == "replacement" and changed and reason == "replaced-missing")
+assert(selected == nil and changed and reason == "disabled-missing")
+assert(stale:get("shadowsocksr", "global", "global_server") == "nil")
 
 local empty = Cursor.new({ global_with("removed_node") })
 selected, changed, reason = runtime.ensure_main_server(empty)
-assert(selected == nil and changed and reason == "disabled-no-server")
+assert(selected == nil and changed and reason == "disabled-missing")
 assert(empty:get("shadowsocksr", "global", "global_server") == "nil")
 
 local no_global = Cursor.new({ server("node_a") })

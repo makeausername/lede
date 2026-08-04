@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..f8cc24c
 --- /dev/null
 +++ b/luci-app-ssr-plus/luasrc/model/shadowsocksr/subscription_runtime.lua
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,34 @@
 +local M = {}
 +
 +local CONFIG = "shadowsocksr"
@@ -15,10 +15,9 @@ index 0000000..f8cc24c
 +		cursor:get(CONFIG, sid) == SERVER_TYPE
 +end
 +
-+-- Keep the selected main node valid after a subscription refresh. A first
-+-- subscription starts from global_server=nil, while a changed subscription
-+-- may remove the section that global_server used to reference. In both cases
-+-- select the first successfully parsed node before restarting the service.
++-- Preserve an explicit disabled state after a subscription refresh. Keep an
++-- existing valid manual selection, but never silently choose a replacement.
++-- A missing selected node is disabled so the user can choose again manually.
 +function M.ensure_main_server(cursor)
 +	local global_sid = cursor:get_first(CONFIG, GLOBAL_TYPE)
 +	if not global_sid then
@@ -26,22 +25,16 @@ index 0000000..f8cc24c
 +	end
 +
 +	local current = cursor:get(CONFIG, global_sid, "global_server") or "nil"
++	if current == "nil" or current == "" then
++		return nil, false, "disabled"
++	end
++
 +	if section_exists(cursor, current) then
 +		return current, false, "preserved"
 +	end
 +
-+	local first = cursor:get_first(CONFIG, SERVER_TYPE)
-+	if first then
-+		cursor:set(CONFIG, global_sid, "global_server", first)
-+		return first, true, current == "nil" and "selected-first" or "replaced-missing"
-+	end
-+
-+	if current ~= "nil" then
-+		cursor:set(CONFIG, global_sid, "global_server", "nil")
-+		return nil, true, "disabled-no-server"
-+	end
-+
-+	return nil, false, "no-server"
++	cursor:set(CONFIG, global_sid, "global_server", "nil")
++	return nil, true, "disabled-missing"
 +end
 +
 +return M
@@ -57,12 +50,11 @@ index 1af3564..42f1cba 100755
  local cache = {}
  local old_groupHash_cache = {}
  local nodeResult = setmetatable({}, {__index = cache}) -- update result
-@@ -2957 +2958,11 @@ local execute = function()
+@@ -2957 +2958,10 @@ local execute = function()
 -	local globalServer = ucic:get_first(name, 'global', 'global_server', '')
 +	local globalServer = ucic:get_first(name, 'global', 'global_server', '')
-+	-- Repair the main-server reference before the legacy restart branch below.
-+	-- The first successful subscription starts with global_server=nil, and a
-+	-- refresh may also remove the section previously referenced by it.
++	-- Preserve a disabled main server and valid manual selections. If a refresh
++	-- removes the selected node, disable it instead of choosing another node.
 +	local _, selection_changed, selection_reason =
 +		subscription_runtime.ensure_main_server(ucic)
 +	if selection_changed then

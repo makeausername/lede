@@ -404,7 +404,11 @@ jobs:
           grep -Fq 'function M.replace(cursor, value)' "$ssr_storage"
           grep -Fq 'cursor:set(CONFIG, sid, "url", url)' "$ssr_storage"
           grep -Fq 'function M.ensure_main_server(cursor)' "$ssr_runtime"
-          grep -Fq 'cursor:set(CONFIG, global_sid, "global_server", first)' "$ssr_runtime"
+          grep -Fq 'if current == "nil" or current == "" then' "$ssr_runtime"
+          grep -Fq 'return nil, false, "disabled"' "$ssr_runtime"
+          grep -Fq 'return nil, true, "disabled-missing"' "$ssr_runtime"
+          ! grep -Fq 'cursor:get_first(CONFIG, SERVER_TYPE)' "$ssr_runtime"
+          ! grep -Fq 'cursor:set(CONFIG, global_sid, "global_server", first)' "$ssr_runtime"
           for footer in "$argon_footer" "$argon_login_footer"; do
             ! grep -Fq '<footer' "$footer"
             ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
