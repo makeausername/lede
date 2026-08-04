@@ -1,0 +1,10 @@
+diff --git a/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua b/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+index 7d2de95..08fd523 100644
+--- a/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
++++ b/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+@@ -7,4 +7,4 @@ local json = require "luci.jsonc"
+ local server_section = arg[1]
+ local proto          = arg[2] or "tcp"
+ local local_port     = arg[3] or "0"
+-local socks_port     = arg[4] or "0"
++local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"

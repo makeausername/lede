@@ -219,7 +219,7 @@ index 608a4f3..77fb77e 100755
 +	fi
 +
 +	logger -t "$NAME" "health failure ${failures}/${MAX_CONSECUTIVE_FAILURES}: ${reason}; restarting"
-+	/etc/init.d/shadowsocksr restart
++	/sbin/start-stop-daemon -S -b -x /bin/sh -- -c 'sleep 1; /etc/init.d/shadowsocksr restart >/dev/null 2>&1'
 +	exit 0
 +}
 +

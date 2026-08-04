@@ -33,6 +33,15 @@ reject_text() {
 	fi
 }
 
+reject_line() {
+	needle="$1"
+	file="$2"
+	if grep -Fxq "$needle" "$file"; then
+		echo "forbidden regression line remains in $file: $needle" >&2
+		exit 1
+	fi
+}
+
 test -s "$storage"
 test -s "$runtime"
 test -s "$client"
@@ -83,9 +92,14 @@ require_text 'DNS2TCP failed to open the local proxy DNS listener' "$init"
 reject_text '"$dnsserver" -N --filter-qtype' "$init"
 
 test "$(grep -Fc 'tproxy = (proto == "udp") and "tproxy" or "redirect"' "$generator")" -ge 2
+require_text 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' "$generator"
+reject_text 'local socks_port     = arg[4] or "0"' "$generator"
 require_text 'tcp_listener_running' "$monitor"
 require_text 'udp_listener_running' "$monitor"
 require_text 'DNS2TCP local proxy DNS listener is unavailable' "$monitor"
+require_text '/sbin/start-stop-daemon -S -b -x /bin/sh' "$monitor"
+require_text 'sleep 1; /etc/init.d/shadowsocksr restart >/dev/null 2>&1' "$monitor"
+reject_line "$(printf '\t/etc/init.d/shadowsocksr restart')" "$monitor"
 require_text 'ChinaDNS-NG proxy DNS listener is unavailable' "$monitor"
 require_text 'ChinaDNS-NG domestic DNS listener is unavailable' "$monitor"
 reject_text 'proxy_path_healthy' "$monitor"
