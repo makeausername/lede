@@ -148,6 +148,7 @@ jobs:
           target_lua /tmp/test-subscription-runtime.lua
           target_lua /tmp/test-subscription-runtime-target.lua
 
+          set -x
           # Keep diagnostics visible here: every value is synthetic test data,
           # so suppressing UCI errors only makes a harness failure ambiguous.
           target_uci set shadowsocksr.hkc_runtime_vless=servers
