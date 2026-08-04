@@ -25,11 +25,11 @@ jobs:
       - name: Download known-good N60 Pro runtime base
         uses: actions/download-artifact@v4
         with:
-          name: HKC-N60-PRO-17-e1b00ab6ebb045541ed2471335b95d621ad4a9e4
+          name: HKC-N60-PRO-28-5330c4558780540a1c4d949b7e99e46b04209a81
           path: preflight-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          run-id: 30635058776
+          run-id: 30815393557
 
       - name: Install runtime validation dependencies
         env:
