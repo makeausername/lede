@@ -90,6 +90,10 @@ jobs:
           sudo unsquashfs -d "$runtime_root" "$root_image" >/dev/null
           sudo install -m 0755 /usr/bin/qemu-aarch64-static \
             "$runtime_root/usr/bin/qemu-aarch64-static"
+          # A booted OpenWrt system creates this volatile directory before
+          # services and command-line UCI consumers run.  The offline
+          # SquashFS extraction does not execute that boot sequence.
+          sudo mkdir -p "$runtime_root/var/run"
 
           ssr_source='.preflight-helloworld/luci-app-ssr-plus'
           sudo install -D -m 0644 \
@@ -144,21 +148,23 @@ jobs:
           target_lua /tmp/test-subscription-runtime.lua
           target_lua /tmp/test-subscription-runtime-target.lua
 
-          target_uci -q set shadowsocksr.hkc_runtime_vless=servers
-          target_uci -q set shadowsocksr.hkc_runtime_vless.type='v2ray'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.v2ray_protocol='vless'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.server='192.0.2.1'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.server_port='443'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.vmess_id='00000000-0000-4000-8000-000000000001'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.transport='raw'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality='1'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_publickey='B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_shortid='0123456789abcdef'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_host='example.com'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_flow='xtls-rprx-vision'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.fingerprint='chrome'
-          target_uci -q set shadowsocksr.@global[0].global_server='hkc_runtime_vless'
-          target_uci -q commit shadowsocksr
+          # Keep diagnostics visible here: every value is synthetic test data,
+          # so suppressing UCI errors only makes a harness failure ambiguous.
+          target_uci set shadowsocksr.hkc_runtime_vless=servers
+          target_uci set shadowsocksr.hkc_runtime_vless.type='v2ray'
+          target_uci set shadowsocksr.hkc_runtime_vless.v2ray_protocol='vless'
+          target_uci set shadowsocksr.hkc_runtime_vless.server='192.0.2.1'
+          target_uci set shadowsocksr.hkc_runtime_vless.server_port='443'
+          target_uci set shadowsocksr.hkc_runtime_vless.vmess_id='00000000-0000-4000-8000-000000000001'
+          target_uci set shadowsocksr.hkc_runtime_vless.transport='raw'
+          target_uci set shadowsocksr.hkc_runtime_vless.reality='1'
+          target_uci set shadowsocksr.hkc_runtime_vless.reality_publickey='B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw'
+          target_uci set shadowsocksr.hkc_runtime_vless.reality_shortid='0123456789abcdef'
+          target_uci set shadowsocksr.hkc_runtime_vless.tls_host='example.com'
+          target_uci set shadowsocksr.hkc_runtime_vless.tls_flow='xtls-rprx-vision'
+          target_uci set shadowsocksr.hkc_runtime_vless.fingerprint='chrome'
+          target_uci set shadowsocksr.@global[0].global_server='hkc_runtime_vless'
+          target_uci commit shadowsocksr
 
           target_lua \
             -e 'package.loaded["luci.model.uci"] = dofile("/tmp/offline-luci-model-uci.lua")' \
