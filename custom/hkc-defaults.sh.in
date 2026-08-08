@@ -9,55 +9,19 @@ if [ -z "$WIFI_PASSWORD" ]; then
 	exit 1
 fi
 
-# System identity, timezone and browser-language-driven LuCI.
-uci -q set system.@system[0].hostname='HKC'
-uci -q set system.@system[0].zonename='Asia/Shanghai'
-uci -q set system.@system[0].timezone='CST-8'
-uci -q set network.lan.ipaddr='192.168.8.1'
-uci -q set network.lan.netmask='255.255.255.0'
-uci -q set luci.main.lang='auto'
-uci -q set luci.main.mediaurlbase='/luci-static/argon'
-
-# N60 Pro / MT7986A tuning. Packet steering spreads network processing across
-# the available CPU cores. Keep FullCone disabled because secure UPnP covers
-# gaming NAT traversal and FullCone would broaden unsolicited UDP reachability.
-if ! uci -q get network.globals >/dev/null 2>&1; then
-	uci -q set network.globals='globals'
-fi
-uci -q set network.globals.packet_steering='1'
-if uci -q get firewall.@defaults[0] >/dev/null 2>&1; then
-	uci -q set firewall.@defaults[0].fullcone='0'
-	uci -q commit firewall
-fi
-
-uci -q commit system
-uci -q commit network
-uci -q commit luci
-
-# Generate the device's radio sections when no wireless configuration exists.
+# Generate the original device radio sections when they do not exist, then
+# change only the two requested SSIDs and their shared private password.
 if ! uci -q show wireless | grep -q '=wifi-device$'; then
 	wifi config
 fi
-
-# This image is for a fresh N60 Pro installation: keep one deterministic AP
-# interface per hardware radio and do not carry vendor/guest defaults forward.
-while uci -q delete 'wireless.@wifi-iface[0]' 2>/dev/null; do
-	:
-done
 
 radio_count=0
 for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
 	band="$(uci -q get "wireless.${radio}.band" || true)"
 
 	case "$band" in
-		2g)
-			ssid='HKC'
-			htmode='HE20'
-			;;
-		5g)
-			ssid='HKC-5G'
-			htmode='HE80'
-			;;
+		2g) ssid='HKC' ;;
+		5g) ssid='HKC-5G' ;;
 		*)
 			echo "HKC firmware: unsupported radio band on ${radio}" >&2
 			exit 1
@@ -66,22 +30,18 @@ for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-devic
 	radio_count=$((radio_count + 1))
 
 	uci -q set "wireless.${radio}.disabled=0"
-	uci -q set "wireless.${radio}.country=CN"
-	uci -q set "wireless.${radio}.channel=auto"
-	uci -q set "wireless.${radio}.htmode=${htmode}"
-
-	# LuCI requires named wifi-iface sections. Anonymous sections trigger the
-	# one-time "Wireless configuration migration" prompt on first entry.
-	iface="default_${radio}"
-	uci -q set "wireless.${iface}=wifi-iface"
-	uci -q set "wireless.${iface}.device=${radio}"
-	uci -q set "wireless.${iface}.network=lan"
-	uci -q set "wireless.${iface}.mode=ap"
+	iface="$(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)\.device='${radio}'$/\1/p" | head -n 1)"
+	if [ -z "$iface" ]; then
+		iface="default_${radio}"
+		uci -q set "wireless.${iface}=wifi-iface"
+		uci -q set "wireless.${iface}.device=${radio}"
+		uci -q set "wireless.${iface}.network=lan"
+		uci -q set "wireless.${iface}.mode=ap"
+	fi
 	uci -q set "wireless.${iface}.ssid=${ssid}"
 	uci -q set "wireless.${iface}.encryption=sae-mixed"
 	uci -q set "wireless.${iface}.key=${WIFI_PASSWORD}"
 	uci -q set "wireless.${iface}.ieee80211w=1"
-	uci -q set "wireless.${iface}.wps_pushbutton=0"
 done
 
 if [ "$radio_count" -ne 2 ]; then
@@ -90,79 +50,22 @@ if [ "$radio_count" -ne 2 ]; then
 fi
 uci -q commit wireless
 
-# Gaming-friendly NAT traversal. Secure mode limits a LAN client to opening a
-# forwarding rule for itself; it does not expose the LuCI administration page.
-if uci -q get upnpd.config >/dev/null 2>&1; then
-	uci -q set upnpd.config.enabled='1'
-	uci -q set upnpd.config.enable_natpmp='1'
-	uci -q set upnpd.config.enable_upnp='1'
-	uci -q set upnpd.config.secure_mode='1'
-	uci -q set upnpd.config.internal_iface='lan'
-	uci -q commit upnpd
-fi
-
-# SSR Plus+ routing and DNS policy. Keep IP Route Mode (bypass mainland China),
-# but force selected AI/TikTok domains through the proxy even if their resolved
-# address is present in the China route table. Proxying all ports prevents apps
-# from escaping through uncommon ports. Keep the original DNS2TCP mode as the
-# production default because it is the proven N60 Pro baseline; ChinaDNS-NG
-# remains available as an optional mode and is separately runtime-validated.
-if ! uci -q get shadowsocksr.@global[0] >/dev/null 2>&1; then
-	uci -q add shadowsocksr global >/dev/null
-fi
-uci -q set shadowsocksr.@global[0].run_mode='router'
-uci -q set shadowsocksr.@global[0].dports='1'
-uci -q set shadowsocksr.@global[0].pdnsd_enable='1'
-uci -q set shadowsocksr.@global[0].filter_aaaa='1'
-uci -q set shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'
-uci -q set shadowsocksr.@global[0].chinadns_ng_proto='tcp'
-uci -q set shadowsocksr.@global[0].chinadns_ng_tunnel_forward='8.8.8.8:53'
-uci -q set shadowsocksr.@global[0].chinadns_forward='223.5.5.5:53'
-
+# Keep all SSR Plus settings and service behavior upstream. Only append the
+# requested domains to the plugin's original blacklist.
 forced_domains='/usr/share/hkc/forced-proxy-domains.list'
 blacklist='/etc/ssrplus/black.list'
 mkdir -p /etc/ssrplus
 touch "$blacklist"
-if [ -r "$forced_domains" ]; then
-	while IFS= read -r domain || [ -n "$domain" ]; do
-		case "$domain" in
-			''|'#'*) continue ;;
-		esac
-		grep -Fqx "$domain" "$blacklist" || printf '%s\n' "$domain" >>"$blacklist"
-	done <"$forced_domains"
-else
+if [ ! -r "$forced_domains" ]; then
 	echo "HKC firmware: forced proxy domain list is missing" >&2
 	exit 1
 fi
 
-# SSR Plus+ subscription policy. The URL itself is deliberately not embedded.
-# A direct first fetch avoids the bootstrap failure caused by proxying through a
-# node which does not exist until the first subscription has been downloaded.
-if ! uci -q get shadowsocksr.@server_subscribe[0] >/dev/null 2>&1; then
-	uci -q add shadowsocksr server_subscribe >/dev/null
-fi
-uci -q set shadowsocksr.@server_subscribe[0].proxy='0'
-uci -q set shadowsocksr.@server_subscribe[0].auto_update='1'
-uci -q set shadowsocksr.@server_subscribe[0].config_auto_update_mode='0'
-uci -q set shadowsocksr.@server_subscribe[0].auto_update_week_time='*'
-uci -q set shadowsocksr.@server_subscribe[0].auto_update_day_time='5'
-uci -q set shadowsocksr.@server_subscribe[0].auto_update_min_time='0'
-uci -q set shadowsocksr.@server_subscribe[0].user_agent='v2rayN/9.99'
-uci -q set shadowsocksr.@server_subscribe[0].allow_insecure='0'
-uci -q set shadowsocksr.@server_subscribe[0].switch='1'
-uci -q set shadowsocksr.@server_subscribe[0].enable_mihomo='0'
-uci -q set shadowsocksr.@server_subscribe[0].sub_convert='0'
-uci -q set shadowsocksr.@server_subscribe[0].filter_words='过期/重置/套餐/剩余/网址/QQ群/官网/防失联/回国'
-uci -q commit shadowsocksr
-
-# Weekly reboot: every Sunday at 03:00 Asia/Shanghai.
-cron_file='/etc/crontabs/root'
-touch "$cron_file"
-sed -i '/# HKC weekly reboot$/d' "$cron_file"
-echo '0 3 * * 0 /sbin/reboot # HKC weekly reboot' >>"$cron_file"
-
-/etc/init.d/cron enable
-/etc/init.d/shadowsocksr enable
-[ ! -x /etc/init.d/miniupnpd ] || /etc/init.d/miniupnpd enable
+while IFS= read -r domain || [ -n "$domain" ]; do
+	case "$domain" in
+		''|'#'*) continue ;;
+	esac
+	grep -Fqx "$domain" "$blacklist" || printf '%s\n' "$domain" >>"$blacklist"
+done <"$forced_domains"
 
 exit 0

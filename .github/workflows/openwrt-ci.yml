@@ -5,10 +5,12 @@ on:
   push:
     branches:
       - master
+      - codex/minimal-ssr-n60
     paths:
       - ".github/workflows/openwrt-ci.yml"
       - "configs/hkc-n60-pro.config"
       - "custom/**"
+      - "target/linux/mediatek/dts/mt7986a-netcore-n60-pro.dts"
 
 permissions:
   contents: read
@@ -19,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build production candidate
+    name: Build minimal production candidate
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     env:
@@ -57,7 +59,7 @@ jobs:
             libgmp3-dev libc6-dev-i386 libltdl-dev libmpc-dev libmpfr-dev \
             libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev \
             libtool lrzsz msmtp ninja-build p7zip p7zip-full patch pkgconf \
-            python3 python3-pyelftools python3-setuptools qemu-user-static qemu-utils rsync \
+            python3 python3-pyelftools python3-setuptools qemu-utils rsync \
             scons squashfs-tools subversion swig texinfo time uglifyjs unzip \
             upx-ucl wget xmlto xxd zlib1g-dev
           sudo apt-get clean
@@ -73,10 +75,10 @@ jobs:
             local name="$1"
             local revision="$2"
             if ! git -C "feeds/${name}" cat-file -e "${revision}^{commit}" 2>/dev/null; then
-              git -C "feeds/${name}" fetch --depth=1 origin "${revision}"
+              git -C "feeds/${name}" fetch --depth=1 origin "$revision"
             fi
-            git -C "feeds/${name}" checkout --detach "${revision}"
-            test "$(git -C "feeds/${name}" rev-parse HEAD)" = "${revision}"
+            git -C "feeds/${name}" checkout --detach "$revision"
+            test "$(git -C "feeds/${name}" rev-parse HEAD)" = "$revision"
           }
 
           pin_feed packages "$PACKAGES_REV"
@@ -84,79 +86,43 @@ jobs:
           pin_feed routing "$ROUTING_REV"
           pin_feed telephony "$TELEPHONY_REV"
           pin_feed helloworld "$HELLOWORLD_REV"
-
           ./scripts/feeds update -a -i
 
-      - name: Apply LuCI and SSR Plus customizations
+      - name: Apply only the three requested customizations
         shell: bash
         run: |
           set -euo pipefail
-          for patch in custom/patches/luci/*.patch; do
-            git -C feeds/luci apply --check "../../${patch}"
-            git -C feeds/luci apply "../../${patch}"
-          done
+          ssr_root='feeds/helloworld/luci-app-ssr-plus'
+          sha256sum \
+            "$ssr_root/root/etc/init.d/shadowsocksr" \
+            "$ssr_root/root/usr/bin/ssr-monitor" \
+            "$ssr_root/root/usr/share/shadowsocksr/gen_config.lua" \
+            "$ssr_root/root/usr/share/shadowsocksr/subscribe.lua" \
+            > /tmp/upstream-ssr-runtime.sha256
+
+          git -C feeds/helloworld apply --check \
+            ../../custom/patches/helloworld/110-force-blacklist-udp.patch
+          git -C feeds/helloworld apply \
+            ../../custom/patches/helloworld/110-force-blacklist-udp.patch
+          sha256sum --check --strict /tmp/upstream-ssr-runtime.sha256
+          grep -Fq 'forced proxy domains must win before the China-IP bypass' \
+            "$ssr_root/root/usr/bin/ssr-rules"
+
+          git -C feeds/luci apply --check \
+            ../../custom/patches/luci/130-hide-argon-version-footer.patch
+          git -C feeds/luci apply \
+            ../../custom/patches/luci/130-hide-argon-version-footer.patch
           for footer in \
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut \
             feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut; do
             ! grep -Fq '<footer' "$footer"
             ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
             ! grep -Fq 'ArgonTheme' "$footer"
-            ! grep -Fq '{{ version.distname }}' "$footer"
           done
-          test "$(grep -Fc 'id="modemenu"' \
-            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut)" -eq 1
 
-          for patch in custom/patches/packages/*.patch; do
-            git -C feeds/packages apply --check "../../${patch}"
-            git -C feeds/packages apply "../../${patch}"
-          done
-          grep -Fq 'PKG_VERSION:=26.3.23' feeds/packages/net/xray-core/Makefile
-          grep -Fq 'PKG_HASH:=eace1512dc4f266e44558ba8d606b5c84f960b5bc2e3d33004f813fe61534949' \
-            feeds/packages/net/xray-core/Makefile
-
-          for patch in custom/patches/helloworld/*.patch; do
-            git -C feeds/helloworld apply --check --unidiff-zero "../../${patch}"
-            git -C feeds/helloworld apply --unidiff-zero "../../${patch}"
-          done
-          grep -Fq 'legacy_urls = { legacy_urls }' \
-            feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/subscribe.lua
-          grep -Fq 'forced proxy domains must win before the China-IP bypass' \
-            feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-rules
-          grep -Fq 'Value, "_classic_subscribe_url"' \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          grep -Fq 'subscription_storage.replace(self.map.uci, value)' \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          ! grep -Fq 'DynamicList, "_classic_subscribe_urls"' \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          ! grep -Fq 'servers_subscribe_url_style' \
-            feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
-          ssr_init='feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr'
-          ssr_monitor='feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor'
-          sh -n "$ssr_init"
-          sh -n "$ssr_monitor"
-          sh custom/tests/test-ssr-production.sh \
-            feeds/helloworld/luci-app-ssr-plus
-          sh custom/tests/test-ssr-dns-runtime.sh \
-            feeds/helloworld/luci-app-ssr-plus
-          grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
-          grep -Fq 'dnsmasq --test --conf-file="$dnsmasq_config"' "$ssr_init"
-          grep -Fq 'if ! Start_Run || ! main_proxy_runtime_healthy; then' "$ssr_init"
-          grep -Fq 'if ! start_rules; then' "$ssr_init"
-          grep -Fq 'if ! start_dns; then' "$ssr_init"
-          grep -Fq 'run -test -c "$tcp_config_file"' "$ssr_init"
-          grep -Fq 'enter_fail_open' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
-          grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
-          grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
-          grep -Fq 'udp_listener_running' "$ssr_monitor"
-          ! grep -Fq 'proxy_path_healthy' "$ssr_monitor"
-          grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
-          ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
           ./scripts/feeds install -a
 
-      - name: Inject private first-boot defaults
+      - name: Inject SSIDs and forced proxy domains
         shell: bash
         run: |
           set -euo pipefail
@@ -164,50 +130,26 @@ jobs:
             echo "::error::WIFI_PASSWORD must be 8-63 ASCII letters or digits"
             exit 1
           fi
-          if [ "$(grep -oF '__WIFI_PASSWORD__' custom/hkc-defaults.sh.in | wc -l)" -ne 1 ]; then
-            echo "::error::Wi-Fi password template must contain exactly one placeholder"
-            exit 1
-          fi
 
-          install -d files/etc/uci-defaults
+          install -d files/etc/uci-defaults files/usr/share/hkc
           install -m 0755 custom/hkc-defaults.sh.in \
-            files/etc/uci-defaults/zz-hkc-defaults-v3
-          install -m 0755 custom/hkc-wan-dhcp.sh \
-            files/etc/uci-defaults/zz-hkc-wan-dhcp-v1
-          install -d files/usr/share/hkc
+            files/etc/uci-defaults/zz-hkc-minimal-defaults
           install -m 0644 custom/forced-proxy-domains.list \
             files/usr/share/hkc/forced-proxy-domains.list
           sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
-            files/etc/uci-defaults/zz-hkc-defaults-v3
-          if grep -Fq '__WIFI_PASSWORD__' files/etc/uci-defaults/zz-hkc-defaults-v3; then
-            echo "::error::Wi-Fi password placeholder was not replaced"
-            exit 1
-          fi
-          defaults='files/etc/uci-defaults/zz-hkc-defaults-v3'
-          wan_defaults='files/etc/uci-defaults/zz-hkc-wan-dhcp-v1'
+            files/etc/uci-defaults/zz-hkc-minimal-defaults
+
+          defaults='files/etc/uci-defaults/zz-hkc-minimal-defaults'
           sh -n "$defaults"
-          sh -n "$wan_defaults"
-          sh custom/tests/test-hkc-wan-dhcp.sh "$wan_defaults"
-          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
-          grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
-          grep -Fq "network.wan.device='eth1'" "$wan_defaults"
-          grep -Fq "network.wan.proto='dhcp'" "$wan_defaults"
-          grep -Fq "''|dhcp)" "$wan_defaults"
-          grep -Fq 'uci -q commit network' "$wan_defaults"
-          grep -Fq 'iface="default_${radio}"' "$defaults"
-          grep -Fq 'wireless.${iface}=wifi-iface' "$defaults"
-          grep -Fq 'wireless.${iface}.ssid=${ssid}' "$defaults"
-          ! grep -Fq 'uci -q add wireless wifi-iface' "$defaults"
-          grep -Fq "network.globals.packet_steering='1'" "$defaults"
-          grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
-          grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
-          grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
-          grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
-          for domain in openai.com chatgpt.com anthropic.com claude.ai tiktok.com tiktokv.com; do
-            grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list || {
-              echo "::error::Required forced-proxy domain missing: $domain"
-              exit 1
-            }
+          ! grep -Fq '__WIFI_PASSWORD__' "$defaults"
+          grep -Fq "ssid='HKC'" "$defaults"
+          grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq 'wireless.${iface}.key=${WIFI_PASSWORD}' "$defaults"
+          grep -Fq "blacklist='/etc/ssrplus/black.list'" "$defaults"
+          ! grep -Eq 'network\.|firewall\.|upnpd\.|crontab|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
+
+          for domain in openai.com chatgpt.com anthropic.com claude.ai; do
+            grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list
           done
           if grep -Ev '^(#.*|[a-z0-9.-]+|)$' files/usr/share/hkc/forced-proxy-domains.list; then
             echo "::error::Forced-proxy list contains an invalid line"
@@ -218,12 +160,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gpy_patch='target/linux/mediatek/patches-6.12/732-net-phy-mxl-gpy-don-t-use-SGMII-AN-if-using-phylink.patch'
-          test -s "$gpy_patch"
-          grep -Fq "Subject: [PATCH] net: phy: mxl-gpy: don't use SGMII AN if using phylink" "$gpy_patch"
-          grep -Fq 'Disable SGMII auto-negotiation if using phylink' "$gpy_patch"
-          grep -Fq 'if (phydev->phylink || gpy_sgmii_aneg_en(phydev))' "$gpy_patch"
-
           cp configs/hkc-n60-pro.config .config
           make defconfig
 
@@ -233,7 +169,6 @@ jobs:
               exit 1
             }
           }
-
           reject_config() {
             if grep -Fqx "$1" .config; then
               echo "::error::Forbidden config selected: $1"
@@ -242,35 +177,26 @@ jobs:
           }
 
           require_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'
-          require_config 'CONFIG_IMAGEOPT=y'
-          require_config 'CONFIG_PREINITOPT=y'
-          require_config 'CONFIG_TARGET_PREINIT_IP="192.168.8.1"'
-          require_config 'CONFIG_TARGET_PREINIT_BROADCAST="192.168.8.255"'
-          require_config 'CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
           require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ChinaDNS_NG=y'
-          require_config 'CONFIG_PACKAGE_luci-ssl-openssl=y'
-          require_config 'CONFIG_PACKAGE_libustream-openssl=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Mihomo=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadow_TLS=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_NaiveProxy=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Simple_Obfs=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_V2ray_Plugin=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y'
           require_config 'CONFIG_PACKAGE_luci-theme-argon=y'
-          require_config 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y'
           require_config 'CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y'
           require_config 'CONFIG_PACKAGE_wpad-openssl=y'
-          require_config 'CONFIG_PACKAGE_kmod-tcp-bbr=y'
-          require_config 'CONFIG_PACKAGE_luci-app-upnp=y'
-          require_config 'CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y'
-          require_config 'CONFIG_PACKAGE_miniupnpd-iptables=y'
-          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Mihomo=y'
-          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
-          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y'
-          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy=y'
-          reject_config 'CONFIG_PACKAGE_luci-ssl=y'
-          reject_config 'CONFIG_PACKAGE_libustream-mbedtls=y'
-          reject_config 'CONFIG_PACKAGE_luci-app-wol=y'
-          reject_config 'CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y'
-          reject_config 'CONFIG_PACKAGE_miniupnpd-nftables=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Kcptun=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Server=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Server=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-upnp=y'
+          reject_config 'CONFIG_PACKAGE_kmod-tcp-bbr=y'
 
           ./scripts/diffconfig.sh | tee hkc-n60-pro.diffconfig
 
@@ -278,10 +204,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! timeout --signal=TERM --kill-after=30s 20m make download -j8; then
-            echo "::warning::Parallel download failed or timed out; retrying serially with verbose logs"
+          if ! timeout --signal=TERM --kill-after=30s 25m make download -j8; then
+            echo "::warning::Parallel download failed; retrying serially"
             find dl -type f -size -1024c -print -delete
-            timeout --signal=TERM --kill-after=30s 20m make download -j1 V=s
+            timeout --signal=TERM --kill-after=30s 25m make download -j1 V=s
           fi
           find dl -type f -size -1024c -print -delete
 
@@ -291,38 +217,29 @@ jobs:
           set -o pipefail
           make -j"$(nproc)" || make -j1 V=s
 
-      - name: Verify firmware and package manifest
+      - name: Verify firmware scope and package manifest
         shell: bash
         run: |
           set -euo pipefail
           target_dir='bin/targets/mediatek/filogic'
-          test -d "$target_dir"
-
           firmware="$(find "$target_dir" -maxdepth 1 -type f \
             -name '*netcore_n60-pro*sysupgrade.bin' -print -quit)"
-          if [ -z "$firmware" ]; then
-            echo "::error::N60 Pro sysupgrade firmware was not generated"
-            exit 1
-          fi
-
           manifest="$(find "$target_dir" -maxdepth 1 -type f \
             -name '*netcore_n60-pro*.manifest' -print -quit)"
-          if [ -z "$manifest" ]; then
-            echo "::error::N60 Pro package manifest was not generated"
-            exit 1
-          fi
+          test -n "$firmware"
+          test -n "$manifest"
 
-          grep -Fqx 'xray-core - 26.3.23-1' "$manifest"
-          grep -Eq '^luci-app-ssr-plus ' "$manifest"
-          grep -Eq '^luci-theme-argon ' "$manifest"
-          grep -Eq '^luci-i18n-base-zh-cn ' "$manifest"
-          grep -Eq '^luci-i18n-ssr-plus-zh-cn ' "$manifest"
-          grep -Eq '^luci-app-upnp ' "$manifest"
-          grep -Eq '^luci-i18n-upnp-zh-cn ' "$manifest"
-          grep -Eq '^miniupnpd-iptables ' "$manifest"
-          grep -Eq '^kmod-tcp-bbr ' "$manifest"
-          ! grep -Eq '^(luci-app-wol|luci-i18n-wol-zh-cn) ' "$manifest"
-          ! grep -Eq '^(mihomo|mosdns|shadowsocksr-libev-|3proxy) ' "$manifest"
+          for package in \
+            xray-core mihomo naiveproxy shadow-tls shadowsocks-rust-sslocal \
+            simple-obfs-client v2ray-plugin shadowsocksr-libev-ssr-local \
+            shadowsocksr-libev-ssr-redir chinadns-ng luci-app-ssr-plus \
+            luci-i18n-ssr-plus-zh-cn luci-theme-argon; do
+            grep -Eq "^${package} " "$manifest" || {
+              echo "::error::Required package missing from manifest: ${package}"
+              exit 1
+            }
+          done
+          ! grep -Eq '^(3proxy|kcptun-client|shadowsocks-rust-ssserver|shadowsocksr-libev-ssr-server) ' "$manifest"
 
           inspect_dir="$(mktemp -d)"
           trap 'sudo rm -rf "$inspect_dir"' EXIT
@@ -330,236 +247,32 @@ jobs:
           root_image="$(find "$inspect_dir" -type f -name root -print -quit)"
           test -n "$root_image"
 
-          defaults="$inspect_dir/zz-hkc-defaults-v3"
-          wan_defaults="$inspect_dir/zz-hkc-wan-dhcp-v1"
-          preinit="$inspect_dir/00_preinit.conf"
-          ssr_model="$inspect_dir/servers.lua"
-          ssr_status="$inspect_dir/status.lua"
-          ssr_controller="$inspect_dir/shadowsocksr-controller.lua"
-          ssr_storage="$inspect_dir/subscription-storage.lua"
-          ssr_runtime="$inspect_dir/subscription-runtime.lua"
-          bbr_sysctl="$inspect_dir/12-tcp-bbr.conf"
-          argon_footer="$inspect_dir/argon-footer.ut"
-          argon_login_footer="$inspect_dir/argon-footer-login.ut"
-          ssr_init="$inspect_dir/shadowsocksr-init"
+          defaults="$inspect_dir/defaults"
+          domains="$inspect_dir/domains"
+          ssr_init="$inspect_dir/ssr-init"
           ssr_monitor="$inspect_dir/ssr-monitor"
           ssr_generator="$inspect_dir/gen-config.lua"
-          ssr_subscribe="$inspect_dir/subscribe.lua"
-          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-defaults-v3 >"$defaults"
-          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-wan-dhcp-v1 >"$wan_defaults"
-          unsquashfs -cat "$root_image" lib/preinit/00_preinit.conf >"$preinit"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_model"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/status.lua >"$ssr_status"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/controller/shadowsocksr.lua >"$ssr_controller"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/shadowsocksr/subscription_storage.lua >"$ssr_storage"
-          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/shadowsocksr/subscription_runtime.lua >"$ssr_runtime"
-          unsquashfs -cat "$root_image" etc/sysctl.d/12-tcp-bbr.conf >"$bbr_sysctl"
-          unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
-          unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer_login.ut >"$argon_login_footer"
+          ssr_rules="$inspect_dir/ssr-rules"
+          argon_footer="$inspect_dir/argon-footer.ut"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-minimal-defaults >"$defaults"
+          unsquashfs -cat "$root_image" usr/share/hkc/forced-proxy-domains.list >"$domains"
           unsquashfs -cat "$root_image" etc/init.d/shadowsocksr >"$ssr_init"
           unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/gen_config.lua >"$ssr_generator"
-          unsquashfs -cat "$root_image" usr/share/shadowsocksr/subscribe.lua >"$ssr_subscribe"
-          test -s "$defaults"
-          test -s "$wan_defaults"
-          test -s "$preinit"
-          test -s "$ssr_model"
-          test -s "$ssr_status"
-          test -s "$ssr_controller"
-          test -s "$ssr_storage"
-          test -s "$ssr_runtime"
-          test -s "$bbr_sysctl"
-          test -s "$argon_footer"
-          test -s "$argon_login_footer"
-          test -s "$ssr_init"
-          test -s "$ssr_monitor"
-          test -s "$ssr_generator"
-          test -s "$ssr_subscribe"
-          grep -Fq "WIFI_PASSWORD='${WIFI_PASSWORD}'" "$defaults"
-          grep -Fq "system.@system[0].hostname='HKC'" "$defaults"
-          grep -Fq "network.lan.ipaddr='192.168.8.1'" "$defaults"
-          grep -Fq "network.wan.device='eth1'" "$wan_defaults"
-          grep -Fq "network.wan.proto='dhcp'" "$wan_defaults"
-          grep -Fq "''|dhcp)" "$wan_defaults"
-          grep -Fq 'uci -q commit network' "$wan_defaults"
+          unsquashfs -cat "$root_image" usr/bin/ssr-rules >"$ssr_rules"
+          unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
+
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
-          grep -Fq 'iface="default_${radio}"' "$defaults"
-          grep -Fq 'wireless.${iface}=wifi-iface' "$defaults"
-          ! grep -Fq 'uci -q add wireless wifi-iface' "$defaults"
-          grep -Fq 'wireless.${iface}.encryption=sae-mixed' "$defaults"
-          grep -Fq "network.globals.packet_steering='1'" "$defaults"
-          grep -Fq "firewall.@defaults[0].fullcone='0'" "$defaults"
-          grep -Fq "upnpd.config.secure_mode='1'" "$defaults"
-          grep -Fq "shadowsocksr.@global[0].pdnsd_enable='1'" "$defaults"
-          grep -Fq "shadowsocksr.@global[0].tunnel_forward='8.8.4.4:53'" "$defaults"
-          grep -Fqx 'net.ipv4.tcp_congestion_control=bbr' "$bbr_sysctl"
-          grep -Fq 'pi_ip="192.168.8.1"' "$preinit"
-          grep -Fq 'Value, "_classic_subscribe_url"' "$ssr_model"
-          grep -Fq 'subscription_storage.replace(self.map.uci, value)' "$ssr_model"
-          grep -Fq 'subscription_storage.clear(self.map.uci)' "$ssr_model"
-          ! grep -Fq 'DynamicList, "_classic_subscribe_urls"' "$ssr_model"
-          ! grep -Fq 'classic_subscribe_commit' "$ssr_model"
-          ! grep -Fq 'm:section(TypedSection, "server_subscribe_item"' "$ssr_model"
-          grep -Fq 'function M.replace(cursor, value)' "$ssr_storage"
-          grep -Fq 'cursor:set(CONFIG, sid, "url", url)' "$ssr_storage"
-          grep -Fq 'function M.ensure_main_server(cursor)' "$ssr_runtime"
-          grep -Fq 'if current == "nil" or current == "" then' "$ssr_runtime"
-          grep -Fq 'return nil, false, "disabled"' "$ssr_runtime"
-          grep -Fq 'return nil, true, "disabled-missing"' "$ssr_runtime"
-          ! grep -Fq 'cursor:get_first(CONFIG, SERVER_TYPE)' "$ssr_runtime"
-          ! grep -Fq 'cursor:set(CONFIG, global_sid, "global_server", first)' "$ssr_runtime"
-          for footer in "$argon_footer" "$argon_login_footer"; do
-            ! grep -Fq '<footer' "$footer"
-            ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
-            ! grep -Fq 'ArgonTheme' "$footer"
-            ! grep -Fq '{{ version.distname }}' "$footer"
-          done
-          test "$(grep -Fc 'id="modemenu"' "$argon_footer")" -eq 1
-          sh -n "$ssr_init"
-          sh -n "$ssr_monitor"
-          grep -Fq 'restart_dnsmasq_safely' "$ssr_init"
-          grep -Fq 'enter_fail_open' "$ssr_init"
-          grep -Fq 'local code="$3"' "$ssr_init"
-          ! grep -Fq 'local mode="$3"' "$ssr_init"
-          grep -Fq 'run -test -c "$udp_config_file"' "$ssr_init"
-          grep -Fq 'start_udp || return 1' "$ssr_init"
-          grep -Fq 'busybox netstat -lnt' "$ssr_init"
-          grep -Fq "EXTRA_COMMANDS='reset clash_cache failopen'" "$ssr_init"
-          grep -Fq 'MAX_CONSECUTIVE_FAILURES=3' "$ssr_monitor"
-          grep -Fq 'udp_listener_running' "$ssr_monitor"
-          grep -Fq 'DNS2TCP local proxy DNS listener is unavailable' "$ssr_monitor"
-          grep -Fq 'ChinaDNS-NG proxy DNS listener is unavailable' "$ssr_monitor"
-          ! grep -Fq 'proxy_path_healthy' "$ssr_monitor"
-          grep -Fq 'dnsmasq and LAN DHCP are unavailable' "$ssr_monitor"
-          grep -Fq '/etc/init.d/shadowsocksr failopen' "$ssr_monitor"
-          ! grep -Eq 'chatgpt\.com|claude\.ai' "$ssr_init" "$ssr_monitor"
-          grep -Fq 'global_tcp_listener_running' "$ssr_status"
-          grep -Fq 'default_tcp_listener_running' "$ssr_controller"
-          test "$(grep -Fc 'tproxy = (proto == "udp") and "tproxy" or "redirect"' "$ssr_generator")" -ge 2
-          grep -Fq 'local function write_new_md5(groupHash, content_md5, url)' "$ssr_subscribe"
-          grep -Fq 'md5 = content_md5' "$ssr_subscribe"
-          grep -Fq 'url_hash = md5(url)' "$ssr_subscribe"
-          ! grep -Fq 'local function write_new_md5(groupHash, md5, url)' "$ssr_subscribe"
-          grep -Fq 'nixio.fs.chmod(path, 600)' "$ssr_subscribe"
-          ! grep -Fq 'nixio.fs.chmod(path, 384)' "$ssr_subscribe"
-          grep -Fq 'local config_snapshot = nixio.fs.readfile(config_path)' "$ssr_subscribe"
-          grep -Fq 'if service_was_running then' "$ssr_subscribe"
-          grep -Fq 'Restored the proxy service that was running before the update' "$ssr_subscribe"
-          grep -Fq 'local subscription_label = "subscription["' "$ssr_subscribe"
-          grep -Fq 'subscription_runtime.ensure_main_server(ucic)' "$ssr_subscribe"
-          ! grep -Fq 'log("处理订阅: " .. url)' "$ssr_subscribe"
-
-          # Run the exact ARM64 firmware Lua and Nixio implementation under
-          # QEMU. This catches target-only API mistakes such as chmod(384), and
-          # tests the production storage module instead of a browser simulation.
-          runtime_root="$inspect_dir/runtime-root"
-          sudo unsquashfs -d "$runtime_root" "$root_image" >/dev/null
-          sudo install -m 0755 /usr/bin/qemu-aarch64-static \
-            "$runtime_root/usr/bin/qemu-aarch64-static"
-          sudo install -m 0644 custom/tests/test-subscription-storage.lua \
-            "$runtime_root/tmp/test-subscription-storage.lua"
-          sudo install -m 0644 custom/tests/test-subscription-runtime.lua \
-            "$runtime_root/tmp/test-subscription-runtime.lua"
-          sudo install -m 0644 custom/tests/test-subscription-runtime-target.lua \
-            "$runtime_root/tmp/test-subscription-runtime-target.lua"
-          sudo install -m 0644 custom/tests/offline-luci-model-uci.lua \
-            "$runtime_root/tmp/offline-luci-model-uci.lua"
-          # The extracted SquashFS has not run the package's first-boot UCI
-          # installer yet. Seed the exact on-image template that a flashed
-          # router copies into /etc/config before exercising the runtime.
-          sudo install -m 0600 \
-            "$runtime_root/usr/share/shadowsocksr/shadowsocksr.config" \
-            "$runtime_root/etc/config/shadowsocksr"
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua -e '
-            local fs = require("nixio.fs")
-            local path = "/tmp/hkc-nixio-chmod-test"
-            assert(fs.writefile(path, "ok"))
-            assert(fs.chmod(path, 600))
-            assert(fs.unlink(path))
-            print("target nixio chmod test passed")
-          '
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua /tmp/test-subscription-storage.lua
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua /tmp/test-subscription-runtime.lua
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/lua /tmp/test-subscription-runtime-target.lua
-
-          # Exercise the actual ARM64 UCI, generator and Xray binary with a
-          # redacted synthetic VLESS Reality node. This validates the selected
-          # main-node reference, TCP REDIRECT/UDP TPROXY config generation and
-          # a real local TCP listener without contacting a private node.
-          target_uci() {
-            sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /sbin/uci "$@"
-          }
-          target_uci -q set shadowsocksr.hkc_runtime_vless=servers
-          target_uci -q set shadowsocksr.hkc_runtime_vless.type='v2ray'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.v2ray_protocol='vless'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.server='192.0.2.1'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.server_port='443'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.vmess_id='00000000-0000-4000-8000-000000000001'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.transport='raw'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality='1'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_publickey='B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.reality_shortid='0123456789abcdef'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_host='example.com'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.tls_flow='xtls-rprx-vision'
-          target_uci -q set shadowsocksr.hkc_runtime_vless.fingerprint='chrome'
-          target_uci -q set shadowsocksr.@global[0].global_server='hkc_runtime_vless'
-          target_uci -q commit shadowsocksr
-          test "$(target_uci -q get shadowsocksr.@global[0].global_server)" = 'hkc_runtime_vless'
-
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
-            -e 'package.loaded["luci.model.uci"] = dofile("/tmp/offline-luci-model-uci.lua")' \
-            /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless tcp 38123 \
-            >"$inspect_dir/xray-vless-tcp.json"
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static /usr/bin/lua \
-            -e 'package.loaded["luci.model.uci"] = dofile("/tmp/offline-luci-model-uci.lua")' \
-            /usr/share/shadowsocksr/gen_config.lua hkc_runtime_vless udp 38124 \
-            >"$inspect_dir/xray-vless-udp.json"
-          grep -Fq '"followRedirect": true' "$inspect_dir/xray-vless-tcp.json"
-          grep -Fq '"tproxy": "tproxy"' "$inspect_dir/xray-vless-udp.json"
-          sudo install -m 0600 "$inspect_dir/xray-vless-tcp.json" \
-            "$runtime_root/tmp/xray-vless-tcp.json"
-          sudo install -m 0600 "$inspect_dir/xray-vless-udp.json" \
-            "$runtime_root/tmp/xray-vless-udp.json"
-          sudo chroot "$runtime_root" /usr/bin/qemu-aarch64-static \
-            /usr/bin/xray version | grep -F 'Xray 26.3.23'
-
-          xray_validator="$inspect_dir/xray-validator"
-          mkdir -p "$xray_validator"
-          curl --fail --location --silent --show-error \
-            https://github.com/XTLS/Xray-core/releases/download/v26.3.23/Xray-linux-64.zip \
-            --output "$xray_validator/Xray-linux-64.zip"
-          echo '8985f9dac52714194cd86368e6361f234b9e26017603b24d58d83041197c5db5  '"$xray_validator/Xray-linux-64.zip" \
-            | sha256sum --check --strict
-          unzip -q "$xray_validator/Xray-linux-64.zip" -d "$xray_validator"
-          "$xray_validator/xray" version | grep -F 'Xray 26.3.23'
-          export XRAY_LOCATION_ASSET="$xray_validator"
-          "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-tcp.json"
-          "$xray_validator/xray" run -test -c "$inspect_dir/xray-vless-udp.json"
-          "$xray_validator/xray" run -c "$inspect_dir/xray-vless-tcp.json" \
-            >"$inspect_dir/xray-runtime.log" 2>&1 &
-          xray_pid=$!
-          listener_ready=0
-          for _ in $(seq 1 20); do
-            if ss -lnt | grep -Eq '[:.]38123[[:space:]]'; then
-              listener_ready=1
-              break
-            fi
-            sleep 0.25
-          done
-          if [ "$listener_ready" -ne 1 ]; then
-            cat "$inspect_dir/xray-runtime.log"
-            sudo kill "$xray_pid" 2>/dev/null || true
-            wait "$xray_pid" 2>/dev/null || true
-            echo "::error::ARM64 Xray did not open the expected TCP listener"
-            exit 1
-          fi
-          sudo kill "$xray_pid" 2>/dev/null || true
-          wait "$xray_pid" 2>/dev/null || true
-          echo 'target VLESS Reality config and TCP listener tests passed'
+          grep -Fqx 'openai.com' "$domains"
+          grep -Fqx 'chatgpt.com' "$domains"
+          ! grep -Eq 'network\.|firewall\.|upnpd\.|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
+          cmp "$ssr_init" feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+          cmp "$ssr_monitor" feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+          cmp "$ssr_generator" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+          grep -Fq 'forced proxy domains must win before the China-IP bypass' "$ssr_rules"
+          ! grep -Fq '<footer' "$argon_footer"
+          ! grep -Fq 'Powered by' "$argon_footer"
 
           sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-SHA256SUMS"
 
@@ -584,4 +297,4 @@ jobs:
           name: HKC-N60-PRO-${{ github.run_number }}-${{ github.sha }}
           path: artifact/
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7

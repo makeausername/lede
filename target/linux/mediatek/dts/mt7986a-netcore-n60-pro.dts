@@ -3,11 +3,12 @@
 /dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 
 #include "mt7986a.dtsi"
 
 / {
-	model = "Netcore N60 PRO";
+	model = "Netcore N60 Pro";
 	compatible = "netcore,n60-pro", "mediatek,mt7986a";
 
 	aliases {
@@ -23,46 +24,57 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	memory {
+	memory@40000000 {
 		reg = <0 0x40000000 0 0x20000000>;
 	};
 
-	keys {
+	gpio-keys {
 		compatible = "gpio-keys";
 
-		reset {
+		button-reset {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
 			gpios = <&pio 9 GPIO_ACTIVE_LOW>;
 		};
 
-		mesh {
+		button-mesh {
 			label = "mesh";
 			linux,code = <KEY_WPS_BUTTON>;
 			gpios = <&pio 10 GPIO_ACTIVE_LOW>;
 		};
 	};
 
-	leds {
+	gpio-leds {
 		compatible = "gpio-leds";
 
-		led_power: power {
-			label = "blue:power";
+		led-0 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&pio 1 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy1tpt";
+		};
+
+		led_power: led-1 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_POWER;
 			gpios = <&pio 29 GPIO_ACTIVE_LOW>;
 		};
 
-		usb {
-			label = "blue:usb";
+		led-2 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_USB;
 			gpios = <&pio 30 GPIO_ACTIVE_LOW>;
 		};
 
-		wps {
-			label = "blue:wps";
+		led-3 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WPS;
 			gpios = <&pio 31 GPIO_ACTIVE_LOW>;
 		};
 
-		wan {
-			label = "blue:wan";
+		led-4 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WAN;
 			gpios = <&pio 32 GPIO_ACTIVE_LOW>;
 		};
 	};
@@ -98,7 +110,7 @@
 		reg = <0>;
 		phy-mode = "2500base-x";
 
-		nvmem-cells = <&macaddr_lan>;
+		nvmem-cells = <&macaddr_factory_1fef20 0>;
 		nvmem-cell-names = "mac-address";
 
 		fixed-link {
@@ -114,7 +126,7 @@
 		phy-handle = <&phy6>;
 		phy-mode = "2500base-x";
 
-		nvmem-cells = <&macaddr_wan>;
+		nvmem-cells = <&macaddr_factory_1fef26 0>;
 		nvmem-cell-names = "mac-address";
 	};
 
@@ -132,14 +144,36 @@
 	phy5: phy@5 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <5>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@3 {
+				reg = <3>;
+				color = <LED_COLOR_ID_GREEN>;
+				function = LED_FUNCTION_LAN;
+			};
+		};
 	};
 
 	phy6: phy@6 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <6>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@3 {
+				reg = <3>;
+				color = <LED_COLOR_ID_GREEN>;
+				function = LED_FUNCTION_WAN;
+			};
+		};
 	};
 
-	switch: switch@0 {
+	switch: switch@1f {
 		compatible = "mediatek,mt7531";
 		reg = <31>;
 		reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
@@ -155,7 +189,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		port@1 {
+		port@0 {
 			reg = <0>;
 			label = "lan2";
 		};
@@ -179,7 +213,6 @@
 
 		port@6 {
 			reg = <6>;
-			label = "cpu";
 			ethernet = <&gmac0>;
 			phy-mode = "2500base-x";
 
@@ -227,10 +260,32 @@
 				reg = <0x0100000 0x0080000>;
 			};
 
-			factory: partition@180000 {
+			partition@180000 {
 				label = "Factory";
 				reg = <0x0180000 0x0200000>;
 				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					eeprom_factory_0: eeprom@0 {
+						reg = <0x0 0x1000>;
+					};
+
+					macaddr_factory_1fef20: macaddr@1fef20 {
+						compatible = "mac-base";
+						reg = <0x1fef20 0x6>;
+						#nvmem-cell-cells = <1>;
+					};
+
+					macaddr_factory_1fef26: macaddr@1fef26 {
+						compatible = "mac-base";
+						reg = <0x1fef26 0x6>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
 			};
 
 			partition@380000 {
@@ -306,23 +361,9 @@
 };
 
 &wifi {
-	status = "okay";
+	nvmem-cells = <&eeprom_factory_0>;
+	nvmem-cell-names = "eeprom";
 	pinctrl-names = "default";
 	pinctrl-0 = <&wf_2g_5g_pins>;
-
-	mediatek,mtd-eeprom = <&factory 0x0>;
-};
-
-&factory {
-	compatible = "nvmem-cells";
-	#address-cells = <1>;
-	#size-cells = <1>;
-
-	macaddr_lan: macaddr@1fef20 {
-		reg = <0x1fef20 0x6>;
-	};
-
-	macaddr_wan: macaddr@1fef26 {
-		reg = <0x1fef26 0x6>;
-	};
+	status = "okay";
 };
