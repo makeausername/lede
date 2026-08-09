@@ -88,25 +88,60 @@ jobs:
           pin_feed helloworld "$HELLOWORLD_REV"
           ./scripts/feeds update -a -i
 
-      - name: Apply only the three requested customizations
+      - name: Apply helloworld/luci customizations
         shell: bash
         run: |
           set -euo pipefail
           ssr_root='feeds/helloworld/luci-app-ssr-plus'
-          sha256sum \
-            "$ssr_root/root/etc/init.d/shadowsocksr" \
-            "$ssr_root/root/usr/bin/ssr-monitor" \
-            "$ssr_root/root/usr/share/shadowsocksr/gen_config.lua" \
-            "$ssr_root/root/usr/share/shadowsocksr/subscribe.lua" \
-            > /tmp/upstream-ssr-runtime.sha256
 
-          git -C feeds/helloworld apply --check \
-            ../../custom/patches/helloworld/110-force-blacklist-udp.patch
-          git -C feeds/helloworld apply \
-            ../../custom/patches/helloworld/110-force-blacklist-udp.patch
-          sha256sum --check --strict /tmp/upstream-ssr-runtime.sha256
+          for patch in \
+            custom/patches/helloworld/110-force-blacklist-udp.patch \
+            custom/patches/helloworld/120-fix-xray-proto-mode.patch \
+            custom/patches/helloworld/121-fix-empty-socks-port.patch \
+            custom/patches/helloworld/122-hide-filter-aaaa.patch \
+            custom/patches/helloworld/123-fix-ssr-monitor.patch \
+            custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch; do
+            git -C feeds/helloworld apply --check "../../$patch"
+            git -C feeds/helloworld apply "../../$patch"
+          done
+
+          # The runtime patches must not touch the subscribe script.
+          for file in \
+            usr/share/shadowsocksr/subscribe.lua; do
+            git -C feeds/helloworld diff --quiet -- "$file"
+          done
+
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
             "$ssr_root/root/usr/bin/ssr-rules"
+
+          # 120: gen_config_file() must pass the network string (global $mode)
+          # to gen_config.lua, not the numeric code argument.
+          grep -Fq 'local code="$3"' "$ssr_root/root/etc/init.d/shadowsocksr"
+          ! grep -Fq 'local mode="$3"' "$ssr_root/root/etc/init.d/shadowsocksr"
+          ! grep -Fq 'case "$mode" in' "$ssr_root/root/etc/init.d/shadowsocksr"
+          grep -Fq 'lua /usr/share/shadowsocksr/gen_config.lua "$server" "$mode" "$local_port" "$socks_port" >"$config_file"' \
+            "$ssr_root/root/etc/init.d/shadowsocksr"
+          sh -n "$ssr_root/root/etc/init.d/shadowsocksr"
+
+          # 121: an empty socks port must normalize to "0" so no broken inbound
+          # is emitted when the global SOCKS5 proxy is disabled.
+          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' \
+            "$ssr_root/root/usr/share/shadowsocksr/gen_config.lua"
+
+          # 122: hide the "Disable IPv6 for Overseas FQDN" toggle on the client
+          # page while keeping the stored value and runtime behavior unchanged.
+          ! grep -Fq 'filter_aaaa' "$ssr_root/luasrc/model/cbi/shadowsocksr/client.lua"
+
+          # 123: the monitor must not use `local` outside a function (busybox
+          # ash crashes) and must match the redir binary used on this firmware.
+          grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" \
+            "$ssr_root/root/usr/bin/ssr-monitor"
+          ! grep -Fq 'local tcp_expected=' "$ssr_root/root/usr/bin/ssr-monitor"
+          sh -n "$ssr_root/root/usr/bin/ssr-monitor"
+
+          # 124: gen_spec_iplist() must not emit blank lines into `ipset -R`.
+          grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_root/root/usr/bin/ssr-rules"
+          sh -n "$ssr_root/root/usr/bin/ssr-rules"
 
           git -C feeds/luci apply --check \
             ../../custom/patches/luci/130-hide-argon-version-footer.patch
@@ -144,6 +179,7 @@ jobs:
           ! grep -Fq '__WIFI_PASSWORD__' "$defaults"
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq "hostname='HKC'" "$defaults"
           grep -Fq 'wireless.${iface}.key=${WIFI_PASSWORD}' "$defaults"
           grep -Fq "blacklist='/etc/ssrplus/black.list'" "$defaults"
           ! grep -Eq 'network\.|firewall\.|upnpd\.|crontab|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
@@ -264,13 +300,21 @@ jobs:
 
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq "hostname='HKC'" "$defaults"
           grep -Fqx 'openai.com' "$domains"
           grep -Fqx 'chatgpt.com' "$domains"
           ! grep -Eq 'network\.|firewall\.|upnpd\.|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
           cmp "$ssr_init" feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
           cmp "$ssr_monitor" feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor
           cmp "$ssr_generator" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+          grep -Fq 'local code="$3"' "$ssr_init"
+          ! grep -Fq 'local mode="$3"' "$ssr_init"
+          ! grep -Fq 'case "$mode" in' "$ssr_init"
+          grep -Fq 'gen_config.lua "$server" "$mode" "$local_port" "$socks_port"' "$ssr_init"
+          grep -Fq '(arg[4] and arg[4] ~= "")' "$ssr_generator"
           grep -Fq 'forced proxy domains must win before the China-IP bypass' "$ssr_rules"
+          grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" "$ssr_monitor"
+          grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_rules"
           ! grep -Fq '<footer' "$argon_footer"
           ! grep -Fq 'Powered by' "$argon_footer"
 

@@ -1,0 +1,13 @@
+diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-rules b/luci-app-ssr-plus/root/usr/bin/ssr-rules
+index 1139dfb..2fc9297 100755
+--- a/luci-app-ssr-plus/root/usr/bin/ssr-rules
++++ b/luci-app-ssr-plus/root/usr/bin/ssr-rules
+@@ -1128,7 +1128,7 @@ get_wan_ip() {
+ }
+ 
+ gen_spec_iplist() {
+-	cat <<-EOF
++	cat <<-EOF | sed '/^$/d'
+ 		0.0.0.0/8
+ 		10.0.0.0/8
+ 		100.64.0.0/10

@@ -9,6 +9,10 @@ if [ -z "$WIFI_PASSWORD" ]; then
 	exit 1
 fi
 
+# The device hostname is part of the HKC brand identity.
+uci -q set system.@system[0].hostname='HKC'
+uci -q commit system
+
 # Generate the original device radio sections when they do not exist, then
 # change only the two requested SSIDs and their shared private password.
 if ! uci -q show wireless | grep -q '=wifi-device$'; then
