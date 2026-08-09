@@ -1,0 +1,127 @@
+diff --git a/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm b/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
+index 9fdf79e..c15d6e9 100644
+--- a/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
++++ b/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
+@@ -209,3 +209,122 @@
+ 		}
+ 	}
+ </style>
++
++<style type="text/css">
++	/* ---- v4 UI polish ---- */
++	.cbi-section {
++		margin-bottom: 14px;
++	}
++
++	.cbi-value-description {
++		font-size: 12px;
++		color: #8a8a8a;
++		margin-top: 2px;
++		line-height: 1.4;
++	}
++
++	#cbi-shadowsocksr-server_subscribe_item .td.cbi-value-field[data-name="url"] input[type="text"] {
++		white-space: nowrap;
++		overflow: hidden;
++		text-overflow: ellipsis;
++	}
++</style><style type="text/css">
++	/* ---- v5: compact schedule select (was too tall / too low) ---- */
++	select[name$=".auto_update_day_time"] {
++		height: 2.1rem !important;
++		min-height: 0 !important;
++		max-height: 2.1rem !important;
++		line-height: 1.15 !important;
++		font-size: 1.05rem !important;
++		padding-top: 0 !important;
++		padding-bottom: 0 !important;
++		padding-left: 0.6rem !important;
++		padding-right: 2rem !important;
++		box-sizing: border-box !important;
++		vertical-align: middle !important;
++		margin: 0 !important;
++	}
++
++	.cbi-value:has(select[name$=".auto_update_day_time"]) {
++		align-items: center !important;
++	}
++
++	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-title {
++		line-height: 1.2 !important;
++		margin-bottom: 0 !important;
++		white-space: nowrap !important;
++	}
++
++	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-field {
++		min-height: 0 !important;
++		height: auto !important;
++	}
++
++	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-field > div {
++		height: auto !important;
++		min-height: 0 !important;
++	}
++</style>
++
++<script type="text/javascript">
++//<![CDATA[
++(function () {
++	'use strict';
++	var observer = null;
++	function fix() {
++		var sel = document.querySelector('select[name$=".auto_update_day_time"]');
++		if (!sel) return false;
++		var st = sel.style;
++		st.height = '2.1rem';
++		st.minHeight = '0';
++		st.maxHeight = '2.1rem';
++		st.lineHeight = '1.15';
++		st.fontSize = '1.05rem';
++		st.paddingTop = '0';
++		st.paddingBottom = '0';
++		st.paddingLeft = '0.6rem';
++		st.paddingRight = '2rem';
++		st.boxSizing = 'border-box';
++		st.verticalAlign = 'middle';
++		st.margin = '0';
++		var row = sel.closest('.cbi-value');
++		if (row) {
++			row.style.alignItems = 'center';
++			row.style.marginBottom = '0.4rem';
++			var field = row.querySelector('.cbi-value-field');
++			if (field) {
++				field.style.minHeight = '0';
++				field.style.height = 'auto';
++			}
++			var title = row.querySelector('.cbi-value-title');
++			if (title) {
++				title.style.lineHeight = '1.2';
++				title.style.marginBottom = '0';
++				title.style.whiteSpace = 'nowrap';
++			}
++		}
++		if (observer) { observer.disconnect(); observer = null; }
++		return true;
++	}
++	function start() {
++		var n = 0;
++		var t = window.setInterval(function () {
++			n = n + 1;
++			if (fix() || n >= 100) { window.clearInterval(t); }
++		}, 200);
++		if (window.MutationObserver) {
++			observer = new MutationObserver(function () {
++				if (document.querySelector('select[name$=".auto_update_day_time"]')) { fix(); }
++			});
++			observer.observe(document.body, { childList: true, subtree: true });
++		}
++	}
++	if (document.readyState === 'loading') {
++		document.addEventListener('DOMContentLoaded', start);
++		window.addEventListener('load', start);
++	} else {
++		start();
++	}
++})();
++//]]>
++</script>

@@ -100,7 +100,9 @@ jobs:
             custom/patches/helloworld/121-fix-empty-socks-port.patch \
             custom/patches/helloworld/122-hide-filter-aaaa.patch \
             custom/patches/helloworld/123-fix-ssr-monitor.patch \
-            custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch; do
+            custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch \
+            custom/patches/helloworld/125-fix-subscribe-ui.patch \
+            custom/patches/helloworld/126-subscribe-style-v5.patch; do
             git -C feeds/helloworld apply --check "../../$patch"
             git -C feeds/helloworld apply "../../$patch"
           done
@@ -142,6 +144,16 @@ jobs:
           # 124: gen_spec_iplist() must not emit blank lines into `ipset -R`.
           grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_root/root/usr/bin/ssr-rules"
           sh -n "$ssr_root/root/usr/bin/ssr-rules"
+
+          # 125: simplified subscribe UI; "Through proxy update" defaults off.
+          ! grep -Fq 'config_auto_update_mode' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          ! grep -Fq 'url_test_url' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          ! grep -Fq '_subscribe_advanced_toggle' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          grep -A4 'Through proxy update' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua" | grep -Fq 'o.default = "0"'
+
+          # 126: compact subscribe style (v4 polish + v5 schedule select fix).
+          grep -Fq 'v4 UI polish' "$ssr_root/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm"
+          grep -Fq 'v5: compact schedule select' "$ssr_root/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm"
 
           git -C feeds/luci apply --check \
             ../../custom/patches/luci/130-hide-argon-version-footer.patch
@@ -289,6 +301,8 @@ jobs:
           ssr_monitor="$inspect_dir/ssr-monitor"
           ssr_generator="$inspect_dir/gen-config.lua"
           ssr_rules="$inspect_dir/ssr-rules"
+          ssr_servers="$inspect_dir/servers.lua"
+          ssr_style="$inspect_dir/style.htm"
           argon_footer="$inspect_dir/argon-footer.ut"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-minimal-defaults >"$defaults"
           unsquashfs -cat "$root_image" usr/share/hkc/forced-proxy-domains.list >"$domains"
@@ -296,6 +310,8 @@ jobs:
           unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
           unsquashfs -cat "$root_image" usr/share/shadowsocksr/gen_config.lua >"$ssr_generator"
           unsquashfs -cat "$root_image" usr/bin/ssr-rules >"$ssr_rules"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_servers"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/view/shadowsocksr/servers_subscribe_url_style.htm >"$ssr_style"
           unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
 
           grep -Fq "ssid='HKC'" "$defaults"
@@ -307,6 +323,14 @@ jobs:
           cmp "$ssr_init" feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
           cmp "$ssr_monitor" feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor
           cmp "$ssr_generator" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+          cmp "$ssr_servers" feeds/helloworld/luci-app-ssr-plus/root/usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua
+          cmp "$ssr_style" feeds/helloworld/luci-app-ssr-plus/root/usr/lib/lua/luci/view/shadowsocksr/servers_subscribe_url_style.htm
+          ! grep -Fq 'config_auto_update_mode' "$ssr_servers"
+          ! grep -Fq '_subscribe_advanced_toggle' "$ssr_servers"
+          ! grep -Fq 'url_test_url' "$ssr_servers"
+          grep -A4 'Through proxy update' "$ssr_servers" | grep -Fq 'o.default = "0"'
+          grep -Fq 'v4 UI polish' "$ssr_style"
+          grep -Fq 'v5: compact schedule select' "$ssr_style"
           grep -Fq 'local code="$3"' "$ssr_init"
           ! grep -Fq 'local mode="$3"' "$ssr_init"
           ! grep -Fq 'case "$mode" in' "$ssr_init"

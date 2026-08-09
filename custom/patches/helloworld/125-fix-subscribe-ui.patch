@@ -1,0 +1,181 @@
+diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+index fe993bf..deb4651 100644
+--- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
++++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+@@ -400,100 +400,52 @@ end
+ local style_section = m:section(SimpleSection)
+ style_section.template = "shadowsocksr/servers_subscribe_url_style"
+ 
+--- Server Subscribe
+-s = m:section(TypedSection, "server_subscribe")
++-- Server Subscribe: 订阅更新
++s = m:section(TypedSection, "server_subscribe", "订阅更新")
+ s.anonymous = true
+ 
+ o = s:option(Flag, "auto_update", translate("Auto Update"))
+ o.rmempty = false
+ o.description = translate("Auto Update Server subscription, GFW list and CHN route")
+ 
+-o = s:option(ListValue, "config_auto_update_mode", translate("Update Mode"))
+-o:value("0", translate("Appointment Mode"))
+-o:value("1", translate("Loop Mode"))
+-o.default = "0"
+-o.rmempty = true
+-o:depends("auto_update", "1")
+-
+-o = s:option(ListValue, "auto_update_week_time", translate("Update cycle (Day/Week)"))
+-o:value('*', translate("Every Day"))
+-o:value("1", translate("Every Monday"))
+-o:value("2", translate("Every Tuesday"))
+-o:value("3", translate("Every Wednesday"))
+-o:value("4", translate("Every Thursday"))
+-o:value("5", translate("Every Friday"))
+-o:value("6", translate("Every Saturday"))
+-o:value("0", translate("Every Sunday"))
+-o.default = "*"
+-o.rmempty = true
+-o:depends({auto_update = "1", config_auto_update_mode = "0"})
+-
+-o = s:option(ListValue, "auto_update_day_time", translate("Regular update (Hour)"))
++o = s:option(ListValue, "auto_update_day_time", "更新时间（每天）")
+ for t = 0, 23 do
+ 	o:value(t, t .. ":00")
+ end
+ o.default = 2
+ o.rmempty = true
+-o:depends({auto_update = "1", config_auto_update_mode = "0"})
+-
+-o = s:option(ListValue, "auto_update_min_time", translate("Regular update (Min)"))
+-for i = 0, 59 do
+-	o:value(i, i .. ":00")
+-end
+-o.default = 30
+-o.rmempty = true
+-o:depends({auto_update = "1", config_auto_update_mode = "0"})
+-
+-o = s:option(Value, "config_update_interval", translate("Update Interval(min)"))
+-o.default = "60"
+-o.datatype = "uinteger"
+-o.rmempty = true
+-o:depends({auto_update = "1", config_auto_update_mode = "1"})
++o:depends("auto_update", "1")
+ 
+-o = s:option(Flag, "_subscribe_advanced_toggle", translate("Subscribe Advanced Settings"))
+-o.rmempty = false
+-o.default = "0"
+-o.write = function() end
+-o.remove = function() end
++-- Server Subscribe: 节点筛选
++s = m:section(TypedSection, "server_subscribe", "节点筛选")
++s.anonymous = true
+ 
+ o = s:option(Value, "filter_words", translate("Subscribe Filter Words"))
+ o.rmempty = true
+ o.default = "过期/重置/套餐/剩余/网址/QQ群/官网/防失联/回国"
+ o.description = translate("Filter Words splited by /")
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
+ 
+ o = s:option(Value, "save_words", translate("Subscribe Save Words"))
+ o.rmempty = true
+ o.description = translate("Save Words splited by /")
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
+ 
+-o = s:option(Flag, "allow_insecure", translate("Allow subscribe Insecure nodes By default"))
+-o.rmempty = false
+-o.description = translate("Subscribe nodes allows insecure connection as TLS client (insecure)")
+-o.default = "0"
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
++-- Server Subscribe: 新节点默认
++s = m:section(TypedSection, "server_subscribe", "新节点默认")
++s.anonymous = true
+ 
+ o = s:option(Flag, "switch", translate("Subscribe Default Auto-Switch"))
+ o.rmempty = false
+ o.description = translate("Subscribe new add server default Auto-Switch on")
+ o.default = "1"
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
+ 
+ o = s:option(Flag, "proxy", translate("Through proxy update"))
+ o.rmempty = false
+ o.description = translate("Through proxy update list, Not Recommended ")
+-o.default = "1"
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
++o.default = "0"
+ 
+-o = s:option(Button, "_save_subscribe_settings", translate("Save Subscribe Settings"))
+-o.inputstyle = "save"
+-o.description = translate("Save current subscribe settings")
+-o.write = function() end
++-- Server Subscribe: 订阅操作
++s = m:section(TypedSection, "server_subscribe", "订阅操作")
++s.anonymous = true
+ 
+ o = s:option(Button, "subscribe", translate("Update All Subscribe Servers"))
+ o.rawhtml = true
+@@ -522,61 +474,6 @@ o.write = function()
+ 	return
+ end
+ 
+-o = s:option(Value, "url_test_url", translate("URL Test Address"))
+-o:value("https://cp.cloudflare.com/", "Cloudflare")
+-o:value("https://www.gstatic.com/generate_204", "Gstatic")
+-o:value("https://www.google.com/generate_204", "Google")
+-o:value("https://www.youtube.com/generate_204", "YouTube")
+-o:value("https://connect.rom.miui.com/generate_204", "MIUI (CN)")
+-o:value("https://connectivitycheck.platform.hicloud.com/generate_204", "HiCloud (CN)")
+-o:value("https://wifi.vivo.com.cn/generate_204", "VIVO (CN)")
+-o.default = o.keylist[3]
+-
+-
+-o = s:option(Value, "user_agent", translate("User-Agent"))
+-o.default = "v2rayN/9.99"
+-o:value("curl", "Curl")
+-o:value("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Linux")
+-o:value("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Windows")
+-o:value("v2rayN/9.99", "v2rayN")
+-o:depends("_subscribe_advanced_toggle", "1")
+-preserve_when_hidden(o, "_subscribe_advanced_toggle", "1")
+-
+-if has_mihomo then
+-	o = s:option(DummyValue, "_upload_clash_yaml", translate("Upload Custom YAML File"))
+-	o.template = "shadowsocksr/clash_yaml_upload"
+-	o.description = translate("Upload a custom Clash/Mihomo YAML file. The file will be preprocessed and saved as a local Clash node.")
+-
+-	o = s:option(Flag, "enable_mihomo", string.format("<b><span style='color:red;'>%s</span></b>", translate("Enable Mihomo core")))
+-	o.default = "0"
+-	o.rmempty = true
+-	o.description = translate("Disabled means use Xray or ShadowSocks-Rust core.")
+-
+-	o = s:option(Flag, "sub_convert", translate("Subscribe Convert Online"))
+-	o.description = translate("Convert subscriptions to Clash/Mihomo YAML with a subscription template URL.")
+-	o.default = "0"
+-	o.rmempty = false
+-	o:depends("enable_mihomo", "1")
+-
+-	o = s:option(Value, "convert_address", translate("Convert Address"))
+-	o.default = "https://api.asailor.org/sub"
+-	o.placeholder = "https://api.asailor.org/sub"
+-	o:value("https://api.asailor.org/sub", "api.asailor.org")
+-	o:value("https://api.wcc.best/sub", "api.wcc.best")
+-	o.rmempty = true
+-	o:depends("sub_convert", "1")
+-
+-	o = s:option(Value, "template_url", translate("Subscribe Template URL"))
+-	o.default = "https://raw.githubusercontent.com/Fzlwhyc/OpenClash-Templates/main//fzlwhyc-openclash.ini"
+-	o.placeholder = "https://raw.githubusercontent.com/Fzlwhyc/OpenClash-Templates/main//fzlwhyc-openclash.ini"
+-	o:value("https://raw.githubusercontent.com/Fzlwhyc/OpenClash-Templates/main//fzlwhyc-openclash.ini", "Fzlwhyc")
+-	o:value("https://gist.githubusercontent.com/vernesong/4c27ed54ab2a5fedd9c4011389ac11ed/raw/lhie1_clash.ini", "lhie1")
+-	o.rmempty = true
+-	o:depends("sub_convert", "1")
+-end
+-
+-s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
+-
+ s = m:section(TypedSection, "server_subscribe_item", translate("Subscribe URL"))
+ s.anonymous = true
+ s.addremove = true
