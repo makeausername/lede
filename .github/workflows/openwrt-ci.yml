@@ -323,8 +323,8 @@ jobs:
           cmp "$ssr_init" feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
           cmp "$ssr_monitor" feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor
           cmp "$ssr_generator" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
-          cmp "$ssr_servers" feeds/helloworld/luci-app-ssr-plus/root/usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua
-          cmp "$ssr_style" feeds/helloworld/luci-app-ssr-plus/root/usr/lib/lua/luci/view/shadowsocksr/servers_subscribe_url_style.htm
+          cmp "$ssr_servers" feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          cmp "$ssr_style" feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
           ! grep -Fq 'config_auto_update_mode' "$ssr_servers"
           ! grep -Fq '_subscribe_advanced_toggle' "$ssr_servers"
           ! grep -Fq 'url_test_url' "$ssr_servers"
