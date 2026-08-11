@@ -1,8 +1,16 @@
 diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-monitor b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
-index 608a4f3..3e87b55 100755
+index 608a4f3..39439d9 100755
 --- a/luci-app-ssr-plus/root/usr/bin/ssr-monitor
 +++ b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
-@@ -27,7 +27,7 @@ match_proc_count() {
+@@ -24,10 +24,15 @@ match_proc_count() {
+ 	ps_list | grep -E "$pattern" | grep -v grep | wc -l
+ }
+ 
++restart_shadowsocksr_detached() {
++	/sbin/start-stop-daemon -S -b -x /bin/sh -- \
++		-c 'sleep 1; /etc/init.d/shadowsocksr restart >/dev/null 2>&1'
++}
++
  redir_tcp_running() {
  	local ssr_count
  	local ipt_count
@@ -11,7 +19,7 @@ index 608a4f3..3e87b55 100755
  	ipt_count=$(ps_list | grep 'ipt2socks' | grep -v grep | grep -E ' -T( |$)| --tcp-only( |$)' | wc -l)
  	echo $((ssr_count + ipt_count))
  }
-@@ -35,7 +35,7 @@ redir_tcp_running() {
+@@ -35,7 +40,7 @@ redir_tcp_running() {
  redir_udp_running() {
  	local ssr_count
  	local ipt_count
@@ -20,7 +28,7 @@ index 608a4f3..3e87b55 100755
  	ipt_count=$(ps_list | grep 'ipt2socks' | grep -v grep | grep -E ' -U( |$)| --udp-only( |$)' | wc -l)
  	echo $((ssr_count + ipt_count))
  }
-@@ -87,7 +87,7 @@ while [ "1" == "1" ]; do #死循环
+@@ -87,28 +92,28 @@ while [ "1" == "1" ]; do #死循环
  	#redir tcp
  	if [ "$redir_tcp_process" -gt 0 ]; then
  		icount=$(redir_tcp_running)
@@ -29,7 +37,14 @@ index 608a4f3..3e87b55 100755
  		if [ "$GLOBAL_TYPE" = "socks5" ]; then
  			tcp_expected="$EXPECTED_THREADS"
  		fi
-@@ -101,7 +101,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt "$tcp_expected" ]; then
+ 			logger -t "$NAME" "ssrplus redir tcp error.restart!"
+ 			echolog "ssrplus redir tcp error.restart!"
+-			/etc/init.d/shadowsocksr restart
++			restart_shadowsocksr_detached
+ 			exit 0
+ 		fi
+ 	fi
  	#redir udp
  	if [ "$redir_udp_process" -gt 0 ]; then
  		icount=$(redir_udp_running)
@@ -38,7 +53,33 @@ index 608a4f3..3e87b55 100755
  		if [ "$GLOBAL_TYPE" = "socks5" ]; then
  			udp_expected="$EXPECTED_THREADS"
  		fi
-@@ -172,12 +172,12 @@ while [ "1" == "1" ]; do #死循环
+ 		if [ "$icount" -lt "$udp_expected" ]; then
+ 			logger -t "$NAME" "ssrplus redir udp error.restart!"
+ 			echolog "ssrplus redir udp error.restart!"
+-			/etc/init.d/shadowsocksr restart
++			restart_shadowsocksr_detached
+ 			exit 0
+ 		fi
+ 	fi
+@@ -119,7 +124,7 @@ while [ "1" == "1" ]; do #死循环
+ 			logger -t "$NAME" "ssrplus server error.restart!"
+ 			echolog "ssrplus server error.restart!"
+ 			kill_matched_procs 'ssr-server|ss-server-'
+-			/etc/init.d/shadowsocksr restart
++			restart_shadowsocksr_detached
+ 			exit 0
+ 		fi
+ 	fi
+@@ -140,7 +145,7 @@ while [ "1" == "1" ]; do #死循环
+ 			logger -t "$NAME" "global socks server error.restart!"
+ 			echolog "global socks server error.restart!"
+ 			kill_matched_procs 'ssr-local|ss-local|tuic-local'
+-			/etc/init.d/shadowsocksr restart
++			restart_shadowsocksr_detached
+ 			exit 0
+ 		fi
+ 	fi
+@@ -172,12 +177,12 @@ while [ "1" == "1" ]; do #死循环
  			echolog "chinadns-ng $dnsserver tunnel error.restart!"
  			dnsserver=$(uci_get_by_type global chinadns_ng_tunnel_forward 8.8.4.4:53)
  			kill -9 $(ps_list | grep "chinadns-ng -b 127.0.0.1 -l $tmp_dns_port" | grep -v grep | awk '{print $1}') >/dev/null 2>&1
@@ -55,3 +96,12 @@ index 608a4f3..3e87b55 100755
  				[ "$chinadns_ng_ip" = "$chinadns_ng_port" ] && chinadns_ng_port="53"
  				chinadns_ng_tls_port="853"
  				case "$chinadns_ng_proto" in
+@@ -202,7 +207,7 @@ while [ "1" == "1" ]; do #死循环
+ 		if ! is_builtin_dns_active; then
+ 			logger -t "$NAME" "builtin dns error.restart!"
+ 			echolog "builtin dns error.restart!"
+-			/etc/init.d/shadowsocksr restart
++			restart_shadowsocksr_detached
+ 			exit 0
+ 		fi
+ 	fi

@@ -135,10 +135,15 @@ jobs:
           ! grep -Fq 'filter_aaaa' "$ssr_root/luasrc/model/cbi/shadowsocksr/client.lua"
 
           # 123: the monitor must not use `local` outside a function (busybox
-          # ash crashes) and must match the redir binary used on this firmware.
+          # ash crashes), must match the redir binary used on this firmware,
+          # and must schedule recovery outside its own service lifecycle.
           grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" \
             "$ssr_root/root/usr/bin/ssr-monitor"
           ! grep -Fq 'local tcp_expected=' "$ssr_root/root/usr/bin/ssr-monitor"
+          grep -Fq 'start-stop-daemon -S -b -x /bin/sh' "$ssr_root/root/usr/bin/ssr-monitor"
+          grep -Fq 'sleep 1; /etc/init.d/shadowsocksr restart' "$ssr_root/root/usr/bin/ssr-monitor"
+          ! grep -Eq '^[[:space:]]*/etc/init.d/shadowsocksr restart([[:space:]]|$)' \
+            "$ssr_root/root/usr/bin/ssr-monitor"
           sh -n "$ssr_root/root/usr/bin/ssr-monitor"
 
           # 124: gen_spec_iplist() must not emit blank lines into `ipset -R`.
@@ -338,6 +343,9 @@ jobs:
           grep -Fq '(arg[4] and arg[4] ~= "")' "$ssr_generator"
           grep -Fq 'forced proxy domains must win before the China-IP bypass' "$ssr_rules"
           grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" "$ssr_monitor"
+          grep -Fq 'start-stop-daemon -S -b -x /bin/sh' "$ssr_monitor"
+          grep -Fq 'sleep 1; /etc/init.d/shadowsocksr restart' "$ssr_monitor"
+          ! grep -Eq '^[[:space:]]*/etc/init.d/shadowsocksr restart([[:space:]]|$)' "$ssr_monitor"
           grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_rules"
           ! grep -Fq '<footer' "$argon_footer"
           ! grep -Fq 'Powered by' "$argon_footer"
