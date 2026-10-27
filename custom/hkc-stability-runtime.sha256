@@ -1,0 +1,12 @@
+# Accepted router runtime, 2026-10-27; excludes device configuration and clock state.
+32ab42c01ec1784415000ff9ef67e6f1e2083fca3963520034dd259db416886c  etc/hotplug.d/iface/99-ssrplus-pppoe
+49e2b8f0c7571523b0a49ed197b12126c94d6dad88d84e98e73466033e99a85f  etc/hotplug.d/ntp/90-hkc-time
+940ebe83c9fd915cd527656e94913c53e58047c22f932467c71c98b5907a58b1  etc/init.d/hkc-stability
+bd375b23e8d0c292dc3c657cc2627f53faeb5b94830381ff46448d126f01b4cd  etc/init.d/shadowsocksr
+00090cc83145d1af010da2126a2d73f268cd4a4f86ab503de1edc8a3a6a812ce  usr/bin/ssr-switch
+c127f380efba489b2a9e91e7fe56356f2b5bb6857c49387f2f9d9d15a70a3c5e  usr/libexec/hkc-ssr-health
+57baa0253d4e365d64d04347158998cb0b1a186d3f6937c8a96335dcfcf43497  usr/libexec/hkc-ssr-preflight
+e406d08a937160059b754c69a97ae00c0e72ae52a84bb544c105573b743314c4  usr/share/shadowsocksr/hkc-update-safe.lua
+00fbf30580e5f679048a768671fee51a22d12ca92dccb997165916cfd3c2278f  usr/share/shadowsocksr/ssrplusupdate.sh
+ecb6515e16bbc91a6a19ef69c976313ab1a018b3ee32bda27cffcf9610f4e1cf  usr/share/shadowsocksr/subscribe.lua
+922578c89750e3f792d061c34b3f766374c8a1fe7570e67bf21f28e9df999993  usr/share/shadowsocksr/update.lua

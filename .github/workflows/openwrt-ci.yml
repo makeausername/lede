@@ -103,16 +103,18 @@ jobs:
             custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch \
             custom/patches/helloworld/125-fix-subscribe-ui.patch \
             custom/patches/helloworld/126-subscribe-style-v5.patch \
-            custom/patches/helloworld/127-fix-subscription-ui-defaults.patch; do
+            custom/patches/helloworld/127-fix-subscription-ui-defaults.patch \
+            custom/patches/helloworld/128-hkc-stability-hardening.patch; do
             git -C feeds/helloworld apply --check "../../$patch"
             git -C feeds/helloworld apply "../../$patch"
           done
 
-          # The runtime patches must not touch the subscribe script.
-          for file in \
-            usr/share/shadowsocksr/subscribe.lua; do
-            git -C feeds/helloworld diff --quiet -- "$file"
-          done
+          # 128: preserve the runtime accepted after router reboot and phone testing.
+          # This check exercises fixtures only; it does not execute router services.
+          python3 scripts/test-hkc-stability.py "$ssr_root"
+          test -x "$ssr_root/root/etc/init.d/hkc-stability"
+          test -x "$ssr_root/root/usr/libexec/hkc-ssr-health"
+          test -x "$ssr_root/root/usr/libexec/hkc-ssr-preflight"
 
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
             "$ssr_root/root/usr/bin/ssr-rules"
@@ -361,6 +363,14 @@ jobs:
           cmp "$ssr_subscribe" feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm
           cmp "$ssr_default_config" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
           cmp "$ssr_firstboot" feeds/helloworld/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus
+          # Verify every accepted stability runtime file was packaged unchanged.
+          while read -r expected runtime_file; do
+            case "$expected" in ''|\#*) continue ;; esac
+            unsquashfs -cat "$root_image" "$runtime_file" >"$inspect_dir/stability-file"
+            echo "$expected  $inspect_dir/stability-file" | sha256sum -c -
+          done < custom/hkc-stability-runtime.sha256
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/advanced.lua >"$inspect_dir/advanced.lua"
+          cmp "$inspect_dir/advanced.lua" feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua
           # Match the six-entry Chinese catalog accepted on the router.
           echo "70f4115597cfe7610e3ccc2fae18ad27690e8f888a6910aa36f7ed9c4177737e  $ssr_ui_lmo" | sha256sum -c -
           ! grep -Fq 'config_auto_update_mode' "$ssr_servers"
