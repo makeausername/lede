@@ -185,7 +185,7 @@ jobs:
 
           ./scripts/feeds install -a
 
-      - name: Inject SSIDs and forced proxy domains
+      - name: Inject HKC defaults and forced proxy domains
         shell: bash
         run: |
           set -euo pipefail
@@ -197,12 +197,17 @@ jobs:
           install -d files/etc/uci-defaults files/usr/share/hkc
           install -m 0755 custom/hkc-defaults.sh.in \
             files/etc/uci-defaults/zz-hkc-minimal-defaults
+          install -m 0755 custom/hkc-lan-ipv4-only.sh \
+            files/etc/uci-defaults/zz-hkc-lan-ipv4-only
           install -m 0644 custom/forced-proxy-domains.list \
             files/usr/share/hkc/forced-proxy-domains.list
           sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
             files/etc/uci-defaults/zz-hkc-minimal-defaults
 
           defaults='files/etc/uci-defaults/zz-hkc-minimal-defaults'
+          lan_defaults='files/etc/uci-defaults/zz-hkc-lan-ipv4-only'
+          sh -n "$lan_defaults"
+          python3 scripts/test-hkc-lan-ipv4-only.py "$lan_defaults"
           sh -n "$defaults"
           ! grep -Fq '__WIFI_PASSWORD__' "$defaults"
           grep -Fq "ssid='HKC'" "$defaults"
@@ -312,6 +317,7 @@ jobs:
           test -n "$root_image"
 
           defaults="$inspect_dir/defaults"
+          lan_defaults="$inspect_dir/lan-ipv4-only"
           domains="$inspect_dir/domains"
           ssr_init="$inspect_dir/ssr-init"
           ssr_monitor="$inspect_dir/ssr-monitor"
@@ -325,6 +331,7 @@ jobs:
           ssr_ui_lmo="$inspect_dir/hkc-ssr-ui.zh-cn.lmo"
           argon_footer="$inspect_dir/argon-footer.ut"
           unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-minimal-defaults >"$defaults"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-lan-ipv4-only >"$lan_defaults"
           unsquashfs -cat "$root_image" usr/share/hkc/forced-proxy-domains.list >"$domains"
           unsquashfs -cat "$root_image" etc/init.d/shadowsocksr >"$ssr_init"
           unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
@@ -341,6 +348,8 @@ jobs:
           grep -Fq "ssid='HKC'" "$defaults"
           grep -Fq "ssid='HKC-5G'" "$defaults"
           grep -Fq "hostname='HKC'" "$defaults"
+          cmp "$lan_defaults" custom/hkc-lan-ipv4-only.sh
+          sh -n "$lan_defaults"
           grep -Fqx 'openai.com' "$domains"
           grep -Fqx 'chatgpt.com' "$domains"
           ! grep -Eq 'network\.|firewall\.|upnpd\.|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
