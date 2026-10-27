@@ -1,5 +1,5 @@
 diff --git a/luci-app-ssr-plus/root/usr/bin/ssr-monitor b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
-index 608a4f3..39439d9 100755
+index 608a4f3..fef1727 100755
 --- a/luci-app-ssr-plus/root/usr/bin/ssr-monitor
 +++ b/luci-app-ssr-plus/root/usr/bin/ssr-monitor
 @@ -24,10 +24,15 @@ match_proc_count() {
@@ -7,8 +7,8 @@ index 608a4f3..39439d9 100755
  }
  
 +restart_shadowsocksr_detached() {
-+	/sbin/start-stop-daemon -S -b -x /bin/sh -- \
-+		-c 'sleep 1; /etc/init.d/shadowsocksr restart >/dev/null 2>&1'
++	/sbin/start-stop-daemon -S -b -m -p /var/run/ssr-recovery.pid -x /bin/sh -- \
++		-c 'trap "rm -f /var/run/ssr-recovery.pid" EXIT; sleep 1; /etc/init.d/shadowsocksr restart >/dev/null 2>&1'
 +}
 +
  redir_tcp_running() {
