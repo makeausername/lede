@@ -1,0 +1,275 @@
+diff --git a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+index deb4651..fd7e82e 100644
+--- a/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
++++ b/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+@@ -401,14 +401,14 @@
+ style_section.template = "shadowsocksr/servers_subscribe_url_style"
+ 
+ -- Server Subscribe: 订阅更新
+-s = m:section(TypedSection, "server_subscribe", "订阅更新")
++s = m:section(TypedSection, "server_subscribe", translate("Subscription Update"))
+ s.anonymous = true
+ 
+ o = s:option(Flag, "auto_update", translate("Auto Update"))
+ o.rmempty = false
+ o.description = translate("Auto Update Server subscription, GFW list and CHN route")
+ 
+-o = s:option(ListValue, "auto_update_day_time", "更新时间（每天）")
++o = s:option(ListValue, "auto_update_day_time", translate("Update Time (Daily)"))
+ for t = 0, 23 do
+ 	o:value(t, t .. ":00")
+ end
+@@ -417,7 +417,7 @@
+ o:depends("auto_update", "1")
+ 
+ -- Server Subscribe: 节点筛选
+-s = m:section(TypedSection, "server_subscribe", "节点筛选")
++s = m:section(TypedSection, "server_subscribe", translate("Node Filters"))
+ s.anonymous = true
+ 
+ o = s:option(Value, "filter_words", translate("Subscribe Filter Words"))
+@@ -430,7 +430,7 @@
+ o.description = translate("Save Words splited by /")
+ 
+ -- Server Subscribe: 新节点默认
+-s = m:section(TypedSection, "server_subscribe", "新节点默认")
++s = m:section(TypedSection, "server_subscribe", translate("New Node Defaults"))
+ s.anonymous = true
+ 
+ o = s:option(Flag, "switch", translate("Subscribe Default Auto-Switch"))
+@@ -444,7 +444,7 @@
+ o.default = "0"
+ 
+ -- Server Subscribe: 订阅操作
+-s = m:section(TypedSection, "server_subscribe", "订阅操作")
++s = m:section(TypedSection, "server_subscribe", translate("Subscription Actions"))
+ s.anonymous = true
+ 
+ o = s:option(Button, "subscribe", translate("Update All Subscribe Servers"))
+diff --git a/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm b/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
+index c15d6e9..175ba87 100644
+--- a/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
++++ b/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
+@@ -228,103 +228,45 @@
+ 		overflow: hidden;
+ 		text-overflow: ellipsis;
+ 	}
+-</style><style type="text/css">
+-	/* ---- v5: compact schedule select (was too tall / too low) ---- */
+-	select[name$=".auto_update_day_time"] {
+-		height: 2.1rem !important;
+-		min-height: 0 !important;
+-		max-height: 2.1rem !important;
+-		line-height: 1.15 !important;
+-		font-size: 1.05rem !important;
+-		padding-top: 0 !important;
+-		padding-bottom: 0 !important;
+-		padding-left: 0.6rem !important;
+-		padding-right: 2rem !important;
+-		box-sizing: border-box !important;
+-		vertical-align: middle !important;
+-		margin: 0 !important;
+-	}
+-
+-	.cbi-value:has(select[name$=".auto_update_day_time"]) {
+-		align-items: center !important;
+-	}
+-
+-	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-title {
+-		line-height: 1.2 !important;
+-		margin-bottom: 0 !important;
+-		white-space: nowrap !important;
+-	}
+-
+-	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-field {
+-		min-height: 0 !important;
+-		height: auto !important;
+-	}
+-
+-	.cbi-value:has(select[name$=".auto_update_day_time"]) .cbi-value-field > div {
+-		height: auto !important;
+-		min-height: 0 !important;
+-	}
+ </style>
+ 
+-<script type="text/javascript">
+-//<![CDATA[
+-(function () {
+-	'use strict';
+-	var observer = null;
+-	function fix() {
+-		var sel = document.querySelector('select[name$=".auto_update_day_time"]');
+-		if (!sel) return false;
+-		var st = sel.style;
+-		st.height = '2.1rem';
+-		st.minHeight = '0';
+-		st.maxHeight = '2.1rem';
+-		st.lineHeight = '1.15';
+-		st.fontSize = '1.05rem';
+-		st.paddingTop = '0';
+-		st.paddingBottom = '0';
+-		st.paddingLeft = '0.6rem';
+-		st.paddingRight = '2rem';
+-		st.boxSizing = 'border-box';
+-		st.verticalAlign = 'middle';
+-		st.margin = '0';
+-		var row = sel.closest('.cbi-value');
+-		if (row) {
+-			row.style.alignItems = 'center';
+-			row.style.marginBottom = '0.4rem';
+-			var field = row.querySelector('.cbi-value-field');
+-			if (field) {
+-				field.style.minHeight = '0';
+-				field.style.height = 'auto';
+-			}
+-			var title = row.querySelector('.cbi-value-title');
+-			if (title) {
+-				title.style.lineHeight = '1.2';
+-				title.style.marginBottom = '0';
+-				title.style.whiteSpace = 'nowrap';
+-			}
+-		}
+-		if (observer) { observer.disconnect(); observer = null; }
+-		return true;
+-	}
+-	function start() {
+-		var n = 0;
+-		var t = window.setInterval(function () {
+-			n = n + 1;
+-			if (fix() || n >= 100) { window.clearInterval(t); }
+-		}, 200);
+-		if (window.MutationObserver) {
+-			observer = new MutationObserver(function () {
+-				if (document.querySelector('select[name$=".auto_update_day_time"]')) { fix(); }
+-			});
+-			observer.observe(document.body, { childList: true, subtree: true });
+-		}
+-	}
+-	if (document.readyState === 'loading') {
+-		document.addEventListener('DOMContentLoaded', start);
+-		window.addEventListener('load', start);
+-	} else {
+-		start();
+-	}
+-})();
+-//]]>
+-</script>
++<style type="text/css">
++/* Keep the theme's label column and align only the daily schedule row. */
++.cbi-value[id$="-auto_update_day_time"] {
++    display: flex;
++    align-items: center;
++    margin-bottom: 0.8rem;
++}
++.cbi-value[id$="-auto_update_day_time"] > .cbi-value-title {
++    float: none;
++    flex-shrink: 0;
++    margin: 0;
++    line-height: 1.5;
++}
++.cbi-value[id$="-auto_update_day_time"] > .cbi-value-field {
++    display: block;
++    min-width: 0;
++    line-height: normal;
++}
++.cbi-value[id$="-auto_update_day_time"] select {
++    margin: 0;
++    vertical-align: middle;
++    max-width: 100%;
++}
++@media (max-width: 600px) {
++    .cbi-value[id$="-auto_update_day_time"] {
++        flex-direction: column;
++        align-items: stretch;
++        gap: 0.4rem;
++    }
++    .cbi-value[id$="-auto_update_day_time"] > .cbi-value-title {
++        width: auto;
++        padding-right: 0;
++        text-align: left;
++    }
++    .cbi-value[id$="-auto_update_day_time"] select {
++        min-width: 0;
++        width: 100%;
++    }
++}
++</style>
+diff --git a/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm b/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm
+index 14ce0b7..2d90743 100644
+--- a/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm
++++ b/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm
+@@ -177,8 +177,9 @@
+ 				fetchLog();
+ 				if (success) {
+ 					var remain = 5;
+-					appendLog('订阅已结束，将在倒数5秒后返回页面');
+-					setStatus('订阅已结束，将在倒数' + remain + '秒后返回页面', '#249400');
++					var finishedMessage = <%=require("luci.jsonc").stringify(translate("Subscription finished. Returning in %s seconds."))%>;
++                    appendLog(finishedMessage.replace('%s', remain));
++					setStatus(finishedMessage.replace('%s', remain), '#249400');
+ 					var countdown = window.setInterval(function() {
+ 						remain = remain - 1;
+ 						if (remain <= 0) {
+@@ -187,7 +188,7 @@
+ 							window.location.href = '<%=servers_url%>';
+ 							return;
+ 						}
+-						setStatus('订阅已结束，将在倒数' + remain + '秒后返回页面', '#249400');
++						setStatus(finishedMessage.replace('%s', remain), '#249400');
+ 					}, 1000);
+ 					return;
+ 				}
+diff --git a/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config b/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
+index 819ce76..5726241 100644
+--- a/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
++++ b/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
+@@ -20,7 +20,7 @@
+ 	option adblock_url 'https://anti-ad.net/anti-ad-for-dnsmasq.conf'
+ 
+ config server_subscribe
+-	option proxy '1'
++	option proxy '0'
+ 	option auto_update '1'
+ 	option config_auto_update_mode '0'
+ 	option config_update_interval '60'
+diff --git a/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus b/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus
+index 3e69e08..474fcf9 100755
+--- a/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus
++++ b/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus
+@@ -52,7 +52,7 @@
+     fi
+ 
+     if ! uci -q get shadowsocksr.@server_subscribe[0].proxy > /dev/null; then
+-        uci -q set shadowsocksr.@server_subscribe[0].proxy='1'
++        uci -q set shadowsocksr.@server_subscribe[0].proxy='0'
+     fi
+ 
+     current_filter_words="$(uci -q get shadowsocksr.@server_subscribe[0].filter_words)"
+diff --git a/luci-app-ssr-plus/po/zh_Hans/hkc-ssr-ui.po b/luci-app-ssr-plus/po/zh_Hans/hkc-ssr-ui.po
+new file mode 100644
+index 0000000..ac18db1 100644
+--- /dev/null
++++ b/luci-app-ssr-plus/po/zh_Hans/hkc-ssr-ui.po
+@@ -0,0 +1,22 @@
++msgid ""
++msgstr ""
++"Content-Type: text/plain; charset=UTF-8\n"
++"Language: zh_CN\n"
++
++msgid "Subscription Update"
++msgstr "订阅更新"
++
++msgid "Update Time (Daily)"
++msgstr "更新时间（每天）"
++
++msgid "Node Filters"
++msgstr "节点筛选"
++
++msgid "New Node Defaults"
++msgstr "新节点默认"
++
++msgid "Subscription Actions"
++msgstr "订阅操作"
++
++msgid "Subscription finished. Returning in %s seconds."
++msgstr "订阅已结束，将在倒数%s秒后返回页面"
