@@ -104,7 +104,8 @@ jobs:
             custom/patches/helloworld/125-fix-subscribe-ui.patch \
             custom/patches/helloworld/126-subscribe-style-v5.patch \
             custom/patches/helloworld/127-fix-subscription-ui-defaults.patch \
-            custom/patches/helloworld/128-hkc-stability-hardening.patch; do
+            custom/patches/helloworld/128-hkc-stability-hardening.patch \
+            custom/patches/helloworld/129-hkc-boot-time-sync.patch; do
             git -C feeds/helloworld apply --check "../../$patch"
             git -C feeds/helloworld apply "../../$patch"
           done
@@ -112,8 +113,10 @@ jobs:
           # 128: preserve the runtime accepted after router reboot and phone testing.
           # This check exercises fixtures only; it does not execute router services.
           python3 scripts/test-hkc-stability.py "$ssr_root"
+          python3 scripts/test-hkc-time-sync.py "$ssr_root"
           test -x "$ssr_root/root/etc/init.d/hkc-stability"
           test -x "$ssr_root/root/usr/libexec/hkc-ssr-health"
+          test -x "$ssr_root/root/usr/libexec/hkc-time-sync"
           test -x "$ssr_root/root/usr/libexec/hkc-ssr-preflight"
 
           grep -Fq 'forced proxy domains must win before the China-IP bypass' \
