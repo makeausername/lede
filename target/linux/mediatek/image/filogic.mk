@@ -1045,3 +1045,19 @@ define Device/xiaomi_redmi-router-ax6000
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += xiaomi_redmi-router-ax6000
+
+# Separate kernel/root UBI. Legacy ID is for the inspected 18.06 validator,
+# NOT permission to flash a merged-layout or ubootmod installation.
+define Device/xiaomi_redmi-router-ax6000-stock
+  DEVICE_VENDOR := Xiaomi
+  DEVICE_MODEL := Redmi Router AX6000 (stock layout)
+  DEVICE_DTS := mt7986a-xiaomi-redmi-router-ax6000-stock
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-leds-ws2812b kmod-mt7986-firmware mt7986-wo-firmware
+  SUPPORTED_DEVICES := xiaomi,redmi-router-ax6000-stock xiaomi,redmi-router-ax6000
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += xiaomi_redmi-router-ax6000-stock

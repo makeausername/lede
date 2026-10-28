@@ -1,0 +1,26 @@
+{
+  "base_commit": "6cb7723430091ab26c3b734b95c743e10eccafa4",
+  "sha256_lf": {
+    ".github/workflows/openwrt-ci.yml": "4bfcb606c6d43b836f16784ec7c9273c4f50d06015132fb30fa544263c98c3da",
+    "configs/hkc-n60-pro.config": "11cf45d1fc2f7c9ec9f7f1e7af11adfe4a11cc646a943deaebf2eff2474a44b9",
+    "custom/feeds.conf.hkc": "2a33362820083749fa9285235a7777f676f18a34affcde6010ad26aecdd2be87",
+    "custom/forced-proxy-domains.list": "f63758fe103ed98aa3c3dcda3d2610e20470e139bd32e3b7aef60fbe2b0e2462",
+    "custom/hkc-defaults.sh.in": "0065befdfc9d1a6811f1bb2e42869bb655c8beb689a01fd1433dfaeb60819f60",
+    "custom/hkc-lan-ipv4-only.sh": "836823a48b94d8dc4327b155bb4ea7108a1fde5a6d0b7021d3ceb8e7aa6190c5",
+    "custom/hkc-stability-runtime.sha256": "edfdc8d846a3089d2efebda92ac667a5c2d11de87cb1d4641f5e932cf131b65f",
+    "custom/patches/helloworld/110-force-blacklist-udp.patch": "6bfc176b87696a805dc24fedfe47487cdb89a77f4ec2802c365f440127373911",
+    "custom/patches/helloworld/120-fix-xray-proto-mode.patch": "c2c3125a5b14f20826f1a7cf9c202bbd5bf746a9b7878b19d6c67f90581eb762",
+    "custom/patches/helloworld/121-fix-empty-socks-port.patch": "3cf9dc8a80a3a63408d0d197d725c0f19fd2b2b1ce67d1a5dc1d6bd9ed3a744c",
+    "custom/patches/helloworld/122-hide-filter-aaaa.patch": "d4c2eab287c52b6e92a3a68e47bb73a98cec4f0abb23d13ff0c9f7d37bb27af6",
+    "custom/patches/helloworld/123-fix-ssr-monitor.patch": "0f7e79e1eb9dea04602658d600d2dcc3af12332921a04d89646c094e9302b6ae",
+    "custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch": "056e6878f5d906e9c556eda7fc140ebde64d16481e8307fcd7b87cb80b7edd03",
+    "custom/patches/helloworld/125-fix-subscribe-ui.patch": "630bad47e3f34265af28948f7fa697dbfe469c42aae195a233c58a3134340c03",
+    "custom/patches/helloworld/126-subscribe-style-v5.patch": "593928fa9141a1984f5d4d7a11ef2fe63af0eb20813b69963be9df2804304284",
+    "custom/patches/helloworld/127-fix-subscription-ui-defaults.patch": "dcb715438c9fc59b2a20339b1d6c08a3305bffcebdd1b53af8eee85b45fe705a",
+    "custom/patches/helloworld/128-hkc-stability-hardening.patch": "4979794b99322facead5e0f652730c2d58ee8c3811e5d5db8ed00c571b7e41ea",
+    "custom/patches/helloworld/129-hkc-boot-time-sync.patch": "e7507dc4ec21dec87913a7e238e8d7af60e6e5142854fd16b74a4dbb8d1d7654",
+    "custom/patches/luci/130-hide-argon-version-footer.patch": "8aa59ebf16f9e76703d5ac34fe2adde8eba67d023aa623d171e63d5a1d1cdba2",
+    "target/linux/mediatek/dts/mt7986a-netcore-n60-pro.dts": "906337a6cb2db921adc24ffacf7753156f918ad5ac98d56f1d9792a1d4c3696e",
+    "target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000.dts": "69699f09025133b857a4b490a5645afd9d945c80a2481e99382f5a34fcd046c1"
+  }
+}

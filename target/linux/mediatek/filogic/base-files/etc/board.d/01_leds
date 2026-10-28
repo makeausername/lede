@@ -65,7 +65,8 @@ openembed,som7981)
 xiaomi,mi-router-wr30u)
 	ucidef_set_led_netdev "wan" "wan" "blue:internet" "wan"
 	;;
-xiaomi,redmi-router-ax6000)
+xiaomi,redmi-router-ax6000|\
+xiaomi,redmi-router-ax6000-stock)
 	ucidef_set_led_netdev "wan" "wan" "rgb:network" "wan"
 	;;
 esac

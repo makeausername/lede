@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+// Keep AX6000 wiring; override only identity and the stock UBI layout.
+#include "mt7986a-xiaomi-redmi-router-ax6000.dts"
+
+/ {
+	model = "Xiaomi Redmi Router AX6000 (stock layout)";
+	compatible = "xiaomi,redmi-router-ax6000-stock", "mediatek,mt7986a";
+};
+
+&spi0 {
+	flash@0 {
+		partitions {
+			/delete-node/ partition@600000;
+			partition@600000 {
+				label = "ubi_kernel";
+				reg = <0x600000 0x1e00000>;
+			};
+			partition@2400000 {
+				label = "ubi";
+				reg = <0x2400000 0x5000000>;
+			};
+		};
+	};
+};
