@@ -1,0 +1,140 @@
+diff --git a/luci-app-ssr-plus/root/usr/libexec/hkc-ssr-health b/luci-app-ssr-plus/root/usr/libexec/hkc-ssr-health
+--- a/luci-app-ssr-plus/root/usr/libexec/hkc-ssr-health
++++ b/luci-app-ssr-plus/root/usr/libexec/hkc-ssr-health
+@@ -7,21 +7,7 @@
+     ip -4 route show default | grep -q '^default '
+ }
+ clock_check() {
+-    local now saved=0
+-    if curl -4 -fsS --connect-timeout 3 --max-time 6 -o /dev/null https://www.baidu.com 2>/dev/null ||
+-       curl -4 -fsS --connect-timeout 3 --max-time 6 -o /dev/null https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null; then
+-        date +%s >/var/run/hkc-time-valid
+-        now="$(date +%s)"
+-        [ ! -s /etc/hkc-last-good-time ] || read -r saved </etc/hkc-last-good-time
+-        case "$saved" in ''|*[!0-9]*) saved=0 ;; esac
+-        if [ $((now - saved)) -ge 21600 ]; then
+-            echo "$now" >/etc/hkc-last-good-time.new && mv /etc/hkc-last-good-time.new /etc/hkc-last-good-time
+-        fi
+-        return 0
+-    fi
+-    rm -f /var/run/hkc-time-valid
+-    logger -t hkc-stability "HTTPS/time health check failed; updates retain old data, node switching paused"
+-    return 1
++    /usr/libexec/hkc-time-sync sync
+ }
+ local_health() {
+     local sid
+@@ -60,10 +46,9 @@
+ sleep 20
+ while :; do
+     if wan_ready; then
+-        if [ "$ticks" -eq 0 ]; then clock_check || true; fi
+-        # Retry existing NTP service when its synchronization hook has not fired.
+-        if [ "$ticks" -eq 0 ] && [ ! -f /var/run/hkc-ntp-synced ]; then
+-            /etc/init.d/sysntpd restart >/dev/null 2>&1
++        # Verify actual clock accuracy; retry initial failure without resetting ntpd.
++        if [ "$ticks" -eq 0 ] || [ ! -s /var/run/hkc-clock-verified-uptime ] || [ -f /var/run/hkc-clock-retry ]; then
++            clock_check || true
+         fi
+         if [ -f /var/run/hkc-ssr-intent ]; then
+             if local_health; then
+@@ -78,6 +63,7 @@
+         fi
+     else
+         failures=0
++        ticks=19
+     fi
+     ticks=$(((ticks + 1) % 20))
+     sleep 30
+diff --git a/luci-app-ssr-plus/root/usr/libexec/hkc-time-sync b/luci-app-ssr-plus/root/usr/libexec/hkc-time-sync
+new file mode 100755
+--- /dev/null
++++ b/luci-app-ssr-plus/root/usr/libexec/hkc-time-sync
+@@ -0,0 +1,87 @@
++#!/bin/sh
++# Two independent, certificate-verified HTTPS clocks supplement native NTP.
++# No unverified HTTP or insecure TLS fallback. All timers use monotonic uptime.
++umask 077
++export LC_ALL=C TZ=UTC0
++uptime_s() { cut -d. -f1 /proc/uptime; }
++read_number() {
++    local value=0
++    [ ! -s "$1" ] || read -r value <"$1"
++    case "$value" in ''|*[!0-9]*) value=0 ;; esac
++    echo "$value"
++}
++fetch_epoch() {
++    local url="$1" file="$2" status value age epoch
++    status="$(curl -4 --noproxy '*' --proto '=https' --tlsv1.2 -fsSI \
++        --connect-timeout 3 --max-time 6 -H 'Cache-Control: no-cache' \
++        -D "$file" -o /dev/null -w '%{http_code}' "$url" 2>/dev/null)" || return 1
++    case "$status" in 2??) ;; *) return 1 ;; esac
++    value="$(awk 'tolower($1)=="date:" {$1=""; sub(/^ /,""); sub(/\r$/,""); value=$0} END {print value}' "$file")"
++    [ -n "$value" ] || return 1
++    age="$(awk 'tolower($1)=="age:" {gsub(/\r/,"",$2); age=$2} END {print age}' "$file")"
++    case "$age" in '') age=0 ;; *[!0-9]*) return 1 ;; esac
++    [ "$age" -le 5 ] || return 1
++    epoch="$(date -u -D '%a, %d %b %Y %H:%M:%S GMT' -d "$value" +%s 2>/dev/null)" || return 1
++    case "$epoch" in ''|*[!0-9]*) return 1 ;; esac
++    [ "$epoch" -ge 1577836800 ] && [ "$epoch" -le 4102444800 ] || return 1
++    echo "$epoch"
++}
++failed() {
++    local last now
++    last="$(read_number /var/run/hkc-clock-verified-uptime)"
++    now="$(uptime_s)"
++    if [ "$last" -eq 0 ] || [ "$now" -lt "$last" ] || [ $((now-last)) -ge 21600 ]; then
++        rm -f /var/run/hkc-time-valid
++    fi
++    logger -t hkc-time 'Clock verification failed; retaining current clock, retry after 60 seconds'
++    touch /var/run/hkc-clock-retry
++    return 1
++}
++main() {
++    local mode="${1:-sync}" now last dir a b at bt gap target current delta saved previous
++    case "$mode" in sync|probe) ;; *) return 2 ;; esac
++    exec 8>/var/run/hkc-time-sync.lock
++    flock -n 8 || return 0
++    now="$(uptime_s)"
++    if [ "$mode" = sync ]; then
++        last="$(read_number /var/run/hkc-clock-attempt-uptime)"
++        [ "$last" -eq 0 ] || [ "$now" -lt "$last" ] || [ $((now-last)) -ge 60 ] || return 0
++        echo "$now" >/var/run/hkc-clock-attempt-uptime
++    fi
++    dir="$(mktemp -d /tmp/hkc-time.XXXXXX)" || return 1
++    trap "rm -rf '$dir'" EXIT
++    trap 'exit 1' HUP INT TERM
++    a="$(fetch_epoch "https://www.baidu.com/?hkc_time=$now" "$dir/a")" || { [ "$mode" = probe ] || failed; return 1; }
++    at="$(uptime_s)"
++    b="$(fetch_epoch "https://www.cloudflare.com/?hkc_time=$now" "$dir/b")" || { [ "$mode" = probe ] || failed; return 1; }
++    bt="$(uptime_s)"
++    a=$((a+bt-at))
++    gap=$((a-b)); [ "$gap" -ge 0 ] || gap=$((-gap))
++    [ "$gap" -le 15 ] || { [ "$mode" = probe ] || failed; return 1; }
++    target="$b"; [ "$a" -le "$b" ] || target="$a"
++    current="$(date +%s)"
++    delta=$((target-current))
++    if [ "$mode" = probe ]; then
++        echo "verified_epoch=$target offset_seconds=$delta sources=2 method=https"
++        return 0
++    fi
++    previous="$(read_number /var/run/hkc-clock-verified-uptime)"
++    if [ "$delta" -gt 2 ] || [ "$delta" -lt -2 ]; then
++        date -u -s "@$target" >/dev/null || { failed; return 1; }
++        logger -t hkc-time "Clock corrected by ${delta}s using two TLS-verified sources"
++    elif [ "$previous" -eq 0 ]; then
++        logger -t hkc-time 'Clock verified with two TLS-verified sources'
++    fi
++    current="$(date +%s)"
++    delta=$((current-target))
++    [ "$delta" -ge -2 ] && [ "$delta" -le 5 ] || { failed; return 1; }
++    echo "$current" >/var/run/hkc-time-valid
++    uptime_s >/var/run/hkc-clock-verified-uptime
++    rm -f /var/run/hkc-clock-retry
++    printf 'method=https-dual\nepoch=%s\n' "$current" >/var/run/hkc-clock-synced
++    saved="$(read_number /etc/hkc-last-good-time)"
++    if [ "$previous" -eq 0 ] || [ "$saved" -gt "$current" ] || [ $((current-saved)) -ge 21600 ]; then
++        echo "$current" >/etc/hkc-last-good-time.new && mv /etc/hkc-last-good-time.new /etc/hkc-last-good-time
++    fi
++}
++main "$@"
