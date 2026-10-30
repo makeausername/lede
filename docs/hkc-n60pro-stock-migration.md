@@ -46,7 +46,7 @@
 
 ## 下一阶段关口
 
-1. 使用独立 .github/workflows/hkc-n60pro-stock.yml 构建新 target：推送 hkc-n60pro-stock-test-* 专用标签触发；不监听 master 或其他分支推送。并发组固定，cancel-in-progress=false。固定 feeds、应用补丁和稳定版产物验收均保留。
+1. 使用独立 .github/workflows/hkc-n60pro-stock.yml 构建新 target：推送 hkc-n60pro-stock-test-* 专用标签触发；另仅在 codex/n60pro-stock-migration 分支修改该工作流文件时触发，用于首次登记工作流。不监听 master 或 AX6000 分支推送。并发组固定，cancel-in-progress=false。固定 feeds、应用补丁和稳定版产物验收均保留。
 2. 构建末尾运行 scripts/verify-hkc-n60pro-stock-build.py 检查真实 FIT/DTB 与运行文件，再上传专用 research artifact，包含 manifest、diffconfig、profiles、镜像及 ARTIFACT-SHA256SUMS。专项报告记录完整源码提交、实际载荷大小和所需 LEB；真实设备剩余容量仍需重新只读检查。本流程不生成原厂网页首次安装包。
 3. 明确可验证的 Bootloader 恢复路径，评估当前没有串口时的首次启动风险。
 4. 对最终候选只使用明确的 sysupgrade -T 纯校验路径；不取消签名检查、不强刷、不在网页上传试探。校验通过本身不证明可启动。

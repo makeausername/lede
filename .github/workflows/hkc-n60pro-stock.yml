@@ -3,6 +3,10 @@ name: HKC N60 Pro Stock Migration Candidate
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "codex/n60pro-stock-migration"
+    paths:
+      - ".github/workflows/hkc-n60pro-stock.yml"
     tags:
       - "hkc-n60pro-stock-test-*"
 

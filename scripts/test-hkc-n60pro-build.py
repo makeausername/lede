@@ -61,7 +61,11 @@ class BuildTests(unittest.TestCase):
     def test_only_new_target_and_dedicated_trigger(self):
         text=(ROOT/'.github/workflows/hkc-n60pro-stock.yml').read_text(); section=steps(text)
         triggers=text.split('on:\n',1)[1].split('permissions:',1)[0]
-        self.assertIn('hkc-n60pro-stock-test-*',triggers);self.assertNotIn('branches:',triggers)
+        self.assertIn('hkc-n60pro-stock-test-*',triggers)
+        self.assertIn('      - "codex/n60pro-stock-migration"',triggers)
+        self.assertIn('      - ".github/workflows/hkc-n60pro-stock.yml"',triggers)
+        self.assertNotIn('master',triggers)
+        self.assertNotIn('redmi',triggers)
         config=section['Generate and validate build configuration']
         self.assertIn('cp configs/hkc-n60-pro-stock-slot1.config .config',config)
         self.assertIn("reject_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'",config)
