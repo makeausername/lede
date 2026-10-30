@@ -7,6 +7,7 @@ import struct
 import subprocess
 import tarfile
 import tempfile
+import zlib
 from pathlib import Path
 from hkc_n60pro_stock_check import PARTITIONS
 BOARD = 'netcore,n60-pro-stock-slot1'
@@ -119,10 +120,15 @@ def check_fit(kernel):
         if node.startswith('/images/') and 'data' in props:
             hashes = [v for n, v in fit.items() if n.startswith(node + '/hash')]
             need(bool(hashes), 'missing FIT image hash')
+            # mkits.sh emits CRC32 alongside SHA; verify both, never skip CRC32.
+            need(any(text(h['algo']) in ('sha1', 'sha256') for h in hashes),
+                 'missing FIT cryptographic hash')
             for h in hashes:
                 algo = text(h['algo'])
-                need(algo in ('sha1', 'sha256'), 'unsupported FIT hash algorithm')
-                need(hashlib.new(algo, props['data']).digest() == h['value'], 'FIT hash mismatch')
+                need(algo in ('crc32', 'sha1', 'sha256'), 'unsupported FIT hash algorithm: ' + algo)
+                digest = (struct.pack('>I', zlib.crc32(props['data']) & 0xffffffff)
+                          if algo == 'crc32' else hashlib.new(algo, props['data']).digest())
+                need(digest == h['value'], 'FIT hash mismatch: ' + algo)
 
 
 def check_root(root, unsquashfs):

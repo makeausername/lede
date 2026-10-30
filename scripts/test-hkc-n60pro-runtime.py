@@ -12,6 +12,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+import zlib
 import hkc_n60pro_image as image
 
 spec = importlib.util.spec_from_file_location('pack', Path(__file__).with_name('package-hkc-n60pro-stock.py'))
@@ -49,11 +50,17 @@ def dtb(board=image.BOARD, bad_layout=False, writable=False):
         children['partition@'+str(i)] = (props, {})
     return blob(({'compatible': string(board)+string('mediatek,mt7986a')}, {'partitions': ({}, children)}))
 
-def fit(load=0x48000000, bad_hash=False, **kwargs):
+def fit(load=0x48000000, bad_hash=False, hash_algorithms=('sha256',), corrupt_algorithm=None, **kwargs):
     raw = bytearray(64); raw[56:60] = b'ARM\x64'; raw.extend(string(image.BOARD)+b'rootfs2')
     kernel = lzma.compress(bytes(raw), format=lzma.FORMAT_ALONE); tree = dtb(**kwargs)
     def part(data, extra):
-        return ({'data':data, **extra}, {'hash-1':({'algo':string('sha256'), 'value': bytes(32) if bad_hash else hashlib.sha256(data).digest()}, {})})
+        hashes = {}
+        for index, algo in enumerate(hash_algorithms, 1):
+            digest = (u32(zlib.crc32(data) & 0xffffffff) if algo == 'crc32'
+                      else hashlib.new(algo, data).digest())
+            if bad_hash or algo == corrupt_algorithm: digest = bytes(len(digest))
+            hashes['hash-' + str(index)] = ({'algo': string(algo), 'value': digest}, {})
+        return ({'data':data, **extra}, hashes)
     return blob(({}, {'images': ({}, {'kernel-1': part(kernel, {'arch':string('arm64'),'compression':string('lzma'),'load':u32(load),'entry':u32(load)}), 'fdt-1': part(tree,{})}),
                      'configurations': ({'default':string('config-1')}, {'config-1':({'kernel':string('kernel-1'),'fdt':string('fdt-1')},{})})}))
 
@@ -64,6 +71,17 @@ class ImageTests(unittest.TestCase):
         image.check_fit(fit())
         for args in [{'load':0x48080000},{'bad_hash':True},{'board':'netcore,n60-pro'},{'bad_layout':True},{'writable':True}]:
             with self.subTest(args=args), self.assertRaises(ValueError): image.check_fit(fit(**args))
+    def test_fit_crc32_and_sha_are_both_verified(self):
+        for crypto in ('sha1', 'sha256'):
+            with self.subTest(crypto=crypto):
+                image.check_fit(fit(hash_algorithms=('crc32', crypto)))
+                for corrupted in ('crc32', crypto):
+                    with self.assertRaisesRegex(ValueError, 'FIT hash mismatch: ' + corrupted):
+                        image.check_fit(fit(hash_algorithms=('crc32', crypto), corrupt_algorithm=corrupted))
+    def test_fit_rejects_crc_only_missing_and_unknown_hashes(self):
+        for algorithms in [('crc32',), (), ('crc32', 'sha256', 'md5')]:
+            with self.subTest(algorithms=algorithms), self.assertRaises(ValueError):
+                image.check_fit(fit(hash_algorithms=algorithms))
     def test_metadata_isolation(self):
         source={'supported_devices':[image.BOARD], 'version':{'revision':'fixture'}}
         meta=pack.factory_metadata(source, '0'*64)
