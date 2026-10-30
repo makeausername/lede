@@ -1,0 +1,45 @@
+--- a/block.c
++++ b/block.c
+@@ -1636,11 +1636,24 @@
+  * Look for /etc/config/fstab on all supported partitions and use it for
+  * mounting extroot if specified.
+  */
++/* Only the dedicated migration board must avoid the vendor configuration. */
++static int hkc_stock_extroot(void)
++{
++	char compatible[128] = { 0 };
++	FILE *f = fopen("/proc/device-tree/compatible", "rb");
++	if (!f)
++		return 0;
++	fread(compatible, 1, sizeof(compatible) - 1, f);
++	fclose(f);
++	return !strcmp(compatible, "netcore,n60-pro-stock-slot1");
++}
++
+ static int main_extroot(int argc, char **argv)
+ {
+ 	struct probe_info *pr;
+ 	char blkdev_path[32] = { 0 };
+ 	int err = -1;
++	int hkc_stock = hkc_stock_extroot();
+ #ifdef UBIFS_EXTROOT
+ 	libubi_t libubi;
+ #endif
+@@ -1670,7 +1683,7 @@
+ 	 */
+ 
+ 	/* Start with looking for MTD partition */
+-	find_block_mtd("\"rootfs_data\"", blkdev_path, sizeof(blkdev_path));
++	find_block_mtd(hkc_stock ? "\"hkc_data\"" : "\"rootfs_data\"", blkdev_path, sizeof(blkdev_path));
+ 	if (blkdev_path[0]) {
+ 		pr = find_block_info(NULL, NULL, blkdev_path);
+ 		if (pr && !strcmp(pr->type, "jffs2")) {
+@@ -1696,7 +1709,7 @@
+ 	/* ... but it also could be an UBI volume */
+ 	memset(blkdev_path, 0, sizeof(blkdev_path));
+ 	libubi = libubi_open();
+-	find_block_ubi(libubi, "rootfs_data", blkdev_path, sizeof(blkdev_path));
++	find_block_ubi(libubi, hkc_stock ? "hkc_data" : "rootfs_data", blkdev_path, sizeof(blkdev_path));
+ 	libubi_close(libubi);
+ 	if (blkdev_path[0]) {
+ 		char cfg[] = "/tmp/ubifs_cfg";

@@ -46,6 +46,20 @@
 
 ## 下一阶段关口
 
+### 2026-10-30 维护候选更新
+
+v2 原厂首次安装包已经实机启动到 slot1，kernel2/rootfs2 与候选载荷一致，hkc_data 挂载正常，开机自动校时及基本 DNS/联网通过。此前普通 netcore,n60-pro 固件不适用于此布局。此结果不等于新的维护升级、恢复或长期稳定性已验收。
+
+本次独立分支将以下修复一起纳入维护镜像构建：
+
+- 专用 profile 在 append-metadata 前补齐 FIT /rootfs size、CRC32、SHA1，按 SquashFS bytes_used 校验；验收拒绝缺失绑定的旧包。
+- 新增 31_hkc_stock_env：只在此专用板型与已确认活动根卷下，通过 UBI 卷名发现 u-boot-env；校验尺寸、字符设备、环境读取成功及 current_slot=1 后才生成 /etc/fw_env.config。它不调用 fw_setenv，不切换槽位。保留旧版空 /etc/config/ubootenv 也会执行；已有不匹配配置不覆盖。
+- fstools block 的 extroot 探测在此专用板型上使用 hkc_data，MTD和UBI路径都不再探测原厂 rootfs_data；其他板型沿用原路径。保留 extroot 功能，不靠关闭它来绕开问题。
+- 增加离线 shell 桩件和实际 C 控制流编译测试，覆盖旧配置升级、读取失败、其他板型及卷缺失，不在测试中执行真实挂载或闪存写入。
+- 12个已验收稳定性/校时运行文件、订阅UI、LAN IPv4-only、后台192.168.8.1、无线默认和固定feeds均不改变。
+
+当前 CI 只输出 stock-slot1 维护测试包，不是原厂网页首次包，也不能用于普通稳定版 N60 PRO 或 AX6000。产物仍需实际解包校验、保留配置升级与恢复测试；未经用户授权不得刷机或重启。
+
 1. 使用独立 .github/workflows/hkc-n60pro-stock.yml 构建新 target：推送 hkc-n60pro-stock-test-* 专用标签触发；不监听 master 或其他分支推送。并发组固定，cancel-in-progress=false。固定 feeds、应用补丁和稳定版产物验收均保留。
 2. 构建末尾运行 scripts/verify-hkc-n60pro-stock-build.py 检查真实 FIT/DTB 与运行文件，再上传专用 research artifact，包含 manifest、diffconfig、profiles、镜像及 ARTIFACT-SHA256SUMS。专项报告记录完整源码提交、实际载荷大小和所需 LEB；真实设备剩余容量仍需重新只读检查。本流程不生成原厂网页首次安装包。
 3. 明确可验证的 Bootloader 恢复路径，评估当前没有串口时的首次启动风险。

@@ -24,7 +24,7 @@ def verify(path, fwtool, unsquashfs, commit):
     meta = metadata(path, fwtool)
     check_metadata(meta)
     payload = read_payload(path)
-    check_fit(payload['kernel'])
+    boot_binding = check_fit(payload['kernel'], payload['root'])
     check_root(payload['root'], unsquashfs)
     sizes = {name: len(payload[name]) for name in ('kernel', 'root')}
     leb = 126976
@@ -36,12 +36,16 @@ def verify(path, fwtool, unsquashfs, commit):
         'image_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
         'image_metadata': meta, 'payload_bytes': sizes,
         'payload_sha256': {name: hashlib.sha256(payload[name]).hexdigest() for name in sizes},
+        'stock_boot_rootfs_binding': boot_binding,
         'verified_stability_runtime_files': runtime_count,
         'required_free_lebs_before_first_install': needed, 'leb_bytes': leb,
         'isolated_overlay_bytes': OVERLAY_BYTES, 'additional_free_lebs': EXTRA_FREE_LEBS,
         'checks': ['FIT hashes, ARM64 load/entry and text_offset', 'dedicated DTB identity and partition layout',
                    '12 accepted stability/clock runtime files', 'SSR monitor, subscription UI and defaults',
                    'Chinese catalog, LAN IPv4-only script', 'migration helpers, LED/network/Wi-Fi MAC routes'],
+        'maintenance_fixes': ['stock boot rootfs FIT size/CRC32/SHA1 binding',
+                              'validated UBI environment configuration initializer',
+                              'dedicated block extroot selects hkc_data, never vendor rootfs_data'],
         'image_validation_passed': True, 'release_ready': False, 'flash_authorized': False,
         'limitations': ['fresh device probe/capacity check still required',
                         'not an original-Web first-install package', 'boot and recovery remain unverified',

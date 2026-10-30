@@ -10,8 +10,9 @@ from pathlib import Path
 import tarfile
 import tempfile
 import subprocess
-from hkc_n60pro_stock_check import parse, assess
-from hkc_n60pro_image import BOARD, PROFILE, need, read_payload, check_fit, check_root, metadata
+from hkc_n60pro_stock_check import parse, assess, verify_retry_backup
+from hkc_n60pro_image import BOARD, PROFILE, need, read_payload, check_kernel_fit, check_fit, check_root, metadata
+from hkc_n60pro_fit import bind_rootfs
 VENDOR_BOARD = 'mediatek,mt7986a-2500wan-spim-snand-rfb'
 
 
@@ -25,7 +26,8 @@ def factory_metadata(source, source_sha):
 
 def write_tar(path, payload):
     prefix = 'sysupgrade-' + PROFILE
-    with tarfile.open(path, 'w', format=tarfile.USTAR_FORMAT) as tar:
+    options = {'fileobj': path} if hasattr(path, 'write') else {'name': path}
+    with tarfile.open(mode='w', format=tarfile.USTAR_FORMAT, **options) as tar:
         d = tarfile.TarInfo(prefix); d.type = tarfile.DIRTYPE; d.mode = 0o755
         tar.addfile(d)
         for name in ['CONTROL', 'kernel', 'root']:
@@ -40,16 +42,30 @@ def main():
     ap.add_argument('--probe', type=Path, required=True, help='fresh stock read-only probe, still boot slot0')
     ap.add_argument('--fwtool', type=Path, required=True)
     ap.add_argument('--unsquashfs', type=Path, required=True)
+    ap.add_argument('--retry-failed-slot1-backup', type=Path,
+                    help='explicitly allow only the identified failed slot1; verified backup manifest required')
     ap.add_argument('--output', type=Path, help='omit to validate only; must end in -stock-first-install-slot1.candidate.bin')
     args = ap.parse_args()
     digest = hashlib.sha256(args.image.read_bytes()).hexdigest()
     need(digest == args.sha256.lower(), 'source image SHA256 mismatch')
     payload = read_payload(args.image)
-    check_fit(payload['kernel']); check_root(payload['root'], args.unsquashfs)
-    result = assess(parse(args.probe.read_text()), len(payload['kernel']), len(payload['root']))
+    check_kernel_fit(payload['kernel']); check_root(payload['root'], args.unsquashfs)
+    original_kernel_sha = hashlib.sha256(payload['kernel']).hexdigest()
+    payload['kernel'] = bind_rootfs(payload['kernel'], payload['root'])
+    boot_binding = check_fit(payload['kernel'], payload['root'])
+    probe = parse(args.probe.read_text(encoding='utf-8'))
+    if args.retry_failed_slot1_backup:
+        verify_retry_backup(args.retry_failed_slot1_backup, probe)
+    result = assess(probe, len(payload['kernel']), len(payload['root']),
+                    retry_failed_slot1=bool(args.retry_failed_slot1_backup))
     need(result['hardware_candidate'] and result['capacity']['fits'], 'stock probe/capacity rejected: ' + str(result['errors']))
     meta = factory_metadata(metadata(args.image, args.fwtool), digest)
     report = {'source_sha256': digest, 'source_metadata': meta, 'capacity': result['capacity'],
+              'stock_boot_rootfs_binding': boot_binding, 'original_kernel_sha256': original_kernel_sha,
+              'kernel_sha256': hashlib.sha256(payload['kernel']).hexdigest(),
+              'root_sha256': hashlib.sha256(payload['root']).hexdigest(),
+              'retry_failed_slot1': bool(args.retry_failed_slot1_backup),
+              'probe_sha256': hashlib.sha256(args.probe.read_bytes()).hexdigest(),
               'release_ready': False, 'flash_authorized': False,
               'limitations': ['bootloader recovery unverified', 'first boot unverified', 'not a production release',
                               'stock Web starts flashing immediately after validation; do not upload for a test']}

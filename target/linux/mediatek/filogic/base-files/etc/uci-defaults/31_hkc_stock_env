@@ -1,0 +1,40 @@
+#!/bin/sh
+# Also runs after a config-preserving upgrade from the first slot1 candidate,
+# whose empty /etc/config/ubootenv makes upstream 30_uboot-envtools return early.
+# Generates a host-tool config only. Never changes the boot environment itself.
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = netcore,n60-pro-stock-slot1 ] || exit 0
+. /lib/functions.sh
+. /lib/upgrade/nand.sh
+. /lib/upgrade/hkc-n60pro-slot1.sh
+
+hkc_slot1_context && hkc_slot1_active_root || exit 1
+volume="$(hkc_slot1_volume u-boot-env)" || exit 1
+case "$volume" in "$HKC_UBI"_[0-9]*) ;; *) exit 1 ;; esac
+[ "$(cat /sys/class/ubi/$volume/name)" = u-boot-env ] || exit 1
+size="$(cat /sys/class/ubi/$volume/data_bytes)" || exit 1
+case "$size" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$size" -ge 524288 ] && [ -c "/dev/$volume" ] || exit 1
+expected="/dev/$volume 0x0 0x80000 0x80000 1"
+
+# Leave an unknown/custom configuration intact for explicit review.
+[ ! -L /etc/fw_env.config ] || exit 1
+if [ -e /etc/fw_env.config ]; then
+    [ "$(cat /etc/fw_env.config)" = "$expected" ] || {
+        logger -t hkc-env 'Existing boot environment configuration differs; left unchanged'
+        exit 1
+    }
+    slot="$(fw_printenv -c /etc/fw_env.config -n dual_boot.current_slot 2>/dev/null)" || exit 1
+    [ "$slot" = 1 ]
+    exit $?
+fi
+
+umask 077
+candidate="$(mktemp /tmp/hkc-fw-env.XXXXXX)" || exit 1
+trap 'rm -f "$candidate"' EXIT
+trap 'exit 1' HUP INT TERM
+printf '%s\n' "$expected" >"$candidate" || exit 1
+slot="$(fw_printenv -c "$candidate" -n dual_boot.current_slot 2>/dev/null)" || exit 1
+[ "$slot" = 1 ] || exit 1
+# Exclusive creation protects an independently supplied configuration.
+(set -C; cat "$candidate" >/etc/fw_env.config) || exit 1
+exit 0

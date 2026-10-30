@@ -20,12 +20,21 @@ for name in BL2 u-boot-env Factory FIP ubi; do
     done
     value "mtd.$name.count" "$found"
 done
-for key in bad_peb_count reserved_for_bad avail_eraseblocks eraseblock_size ro_mode; do
+for key in mtd_num bad_peb_count reserved_for_bad avail_eraseblocks eraseblock_size ro_mode; do
     value "ubi.$key" "$(cat /sys/class/ubi/ubi0/$key 2>/dev/null)"
 done
 for dir in /sys/class/ubi/ubi0_*; do
     [ -f "$dir/name" ] || continue
     value "volume.$(cat "$dir/name")" "$(cat "$dir/reserved_ebs")"
+    name="$(cat "$dir/name")"
+    case "$name" in kernel2|rootfs2)
+        value "volume_device.$name" "${dir##*/}"
+        for key in type corrupted upd_marker; do
+            value "volume_$key.$name" "$(cat "$dir/$key" 2>/dev/null)"
+        done
+        value "volume_sha256.$name" "$(sha256sum "/dev/${dir##*/}" | cut -d ' ' -f 1)"
+        ;;
+    esac
 done
 if [ -s /etc/fw.key ]; then value encryption_key present; else value encryption_key absent; fi
 if [ -e /tmp/image_ignore_signature ]; then value ignore_signature present; else value ignore_signature absent; fi
@@ -36,5 +45,10 @@ case "$env_result" in
     0|1) value env_state valid; value env_current_slot "$env_result" ;;
     *) value env_state unknown ;;
 esac
+value env_slot_1_invalid "$(fw_printenv -n dual_boot.slot_1_invalid 2>/dev/null)"
+for dir in /sys/class/ubi/ubi0_*; do
+    [ "$(cat "$dir/name" 2>/dev/null)" = u-boot-env ] || continue
+    value env_sha256 "$(sha256sum "/dev/${dir##*/}" | cut -d ' ' -f 1)"
+done
 value web_auto_flashes "$(grep -Fc 'sysupgrade -c $UPGRADE_IMG' /www/cgi-bin/upgrade 2>/dev/null)"
 exit 0

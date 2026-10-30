@@ -68,20 +68,20 @@ def payload(): return {'CONTROL': ('BOARD='+image.PROFILE+'\n').encode(), 'kerne
 
 class ImageTests(unittest.TestCase):
     def test_fit_and_dtb(self):
-        image.check_fit(fit())
+        image.check_kernel_fit(fit())
         for args in [{'load':0x48080000},{'bad_hash':True},{'board':'netcore,n60-pro'},{'bad_layout':True},{'writable':True}]:
-            with self.subTest(args=args), self.assertRaises(ValueError): image.check_fit(fit(**args))
+            with self.subTest(args=args), self.assertRaises(ValueError): image.check_kernel_fit(fit(**args))
     def test_fit_crc32_and_sha_are_both_verified(self):
         for crypto in ('sha1', 'sha256'):
             with self.subTest(crypto=crypto):
-                image.check_fit(fit(hash_algorithms=('crc32', crypto)))
+                image.check_kernel_fit(fit(hash_algorithms=('crc32', crypto)))
                 for corrupted in ('crc32', crypto):
                     with self.assertRaisesRegex(ValueError, 'FIT hash mismatch: ' + corrupted):
-                        image.check_fit(fit(hash_algorithms=('crc32', crypto), corrupt_algorithm=corrupted))
+                        image.check_kernel_fit(fit(hash_algorithms=('crc32', crypto), corrupt_algorithm=corrupted))
     def test_fit_rejects_crc_only_missing_and_unknown_hashes(self):
         for algorithms in [('crc32',), (), ('crc32', 'sha256', 'md5')]:
             with self.subTest(algorithms=algorithms), self.assertRaises(ValueError):
-                image.check_fit(fit(hash_algorithms=algorithms))
+                image.check_kernel_fit(fit(hash_algorithms=algorithms))
     def test_metadata_isolation(self):
         source={'supported_devices':[image.BOARD], 'version':{'revision':'fixture'}}
         meta=pack.factory_metadata(source, '0'*64)

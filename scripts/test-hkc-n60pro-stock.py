@@ -97,7 +97,8 @@ def shell_tests(shell):
              'target/linux/mediatek/filogic/base-files/etc/board.d/02_network',
              'target/linux/mediatek/filogic/base-files/lib/upgrade/hkc-n60pro-slot1.sh',
              'target/linux/mediatek/filogic/base-files/lib/preinit/79_hkc_stock_overlay',
-             'target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac']
+             'target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac',
+             'target/linux/mediatek/filogic/base-files/etc/uci-defaults/31_hkc_stock_env']
     for path in paths:
         subprocess.run([shell, '-n', str(ROOT / path)], check=True)
     source = (ROOT / paths[1]).read_text()
@@ -133,6 +134,11 @@ def patch_tests(references, patch):
         apply(folder, ROOT / 'package/system/fstools/patches/100-hkc-n60pro-stock-slot1-overlay.patch')
         code = f.read_text()
         assert 'name = "hkc_data"' in code and 'if (hkc_stock_slot1())' in code
+        f = folder / 'block.c'
+        f.write_bytes((references / 'fstools-block.c').read_bytes())
+        apply(folder, ROOT / 'package/system/fstools/patches/101-hkc-n60pro-stock-extroot-isolation.patch')
+        code = f.read_text()
+        assert 'hkc_stock ? "hkc_data" : "rootfs_data"' in code
     print('PASS Linux 6.12.95 and pinned fstools patches apply with zero fuzz (not a compiler or boot test)')
 
 

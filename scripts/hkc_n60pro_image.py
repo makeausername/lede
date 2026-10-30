@@ -26,31 +26,44 @@ def read(path):
 
 def fdt(data):
     need(len(data) >= 40, 'truncated FDT header')
-    magic, total, pos, strings = struct.unpack_from('>IIII', data)
-    need(magic == 0xd00dfeed and total <= len(data), 'invalid FDT')
+    magic, total, pos, strings, reserve, version, last, cpu, names_size, st_size = struct.unpack_from('>10I', data)
+    need(magic == 0xd00dfeed and 40 <= total <= len(data) and version == 17 and last <= 17,
+         'invalid FDT')
+    limit = pos + st_size
+    need(40 <= reserve < pos < limit <= strings and strings + names_size <= total,
+         'invalid FDT block bounds')
     data = data[:total]
     nodes, stack = {}, []
-    while pos + 4 <= total:
+    while pos + 4 <= limit:
         token, = struct.unpack_from('>I', data, pos)
         pos += 4
         if token == 1:
-            end = data.index(0, pos)
-            stack.append(data[pos:end].decode())
+            end = data.index(0, pos, limit)
+            name = data[pos:end].decode()
+            need('/' not in name and (bool(name) if stack else not name), 'invalid FDT node name')
+            stack.append(name)
             pos = (end + 4) & ~3
-            nodes.setdefault('/'.join(stack) or '/', {})
+            path = '/'.join(stack) or '/'
+            need(path not in nodes, 'duplicate FDT node')
+            nodes[path] = {}
         elif token == 2:
+            need(bool(stack), 'unbalanced FDT nodes')
             stack.pop()
         elif token == 3:
+            need(bool(stack) and pos + 8 <= limit, 'invalid FDT property header')
             size, offset = struct.unpack_from('>II', data, pos)
             pos += 8
-            need(pos + size <= total, 'truncated FDT property')
-            end = data.index(0, strings + offset)
+            need(pos + size <= limit and offset < names_size, 'truncated FDT property')
+            end = data.index(0, strings + offset, strings + names_size)
             key = data[strings + offset:end].decode()
-            nodes['/'.join(stack) or '/'][key] = data[pos:pos + size]
+            props = nodes['/'.join(stack) or '/']
+            need(bool(key) and key not in props, 'duplicate or empty FDT property')
+            props[key] = data[pos:pos + size]
             pos = (pos + size + 3) & ~3
         elif token == 4:
             pass
         elif token == 9:
+            need(not stack and '/' in nodes and pos == limit, 'unbalanced/trailing FDT structure')
             return nodes
         else:
             raise ValueError('invalid FDT token')
@@ -100,7 +113,7 @@ def read_payload(path):
         return result
 
 
-def check_fit(kernel):
+def check_kernel_fit(kernel):
     fit = fdt(kernel)
     cfg = fit['/configurations']
     need(text(cfg['default']) == 'config-1', 'unexpected FIT configuration')
@@ -131,6 +144,12 @@ def check_fit(kernel):
                 need(digest == h['value'], 'FIT hash mismatch: ' + algo)
 
 
+def check_fit(kernel, root):
+    check_kernel_fit(kernel)
+    from hkc_n60pro_fit import check_rootfs_fit
+    return check_rootfs_fit(kernel, root)
+
+
 def check_root(root, unsquashfs):
     with tempfile.TemporaryDirectory() as tmp:
         image = Path(tmp) / 'root.squashfs'; image.write_bytes(root)
@@ -141,7 +160,8 @@ def check_root(root, unsquashfs):
             digest, name = line.split(None, 1)
             need(hashlib.sha256(member(name)).hexdigest() == digest, 'accepted runtime differs: ' + name)
         for name in ['lib/upgrade/hkc-n60pro-slot1.sh', 'lib/preinit/79_hkc_stock_overlay', 'lib/upgrade/platform.sh',
-                     'etc/hotplug.d/ieee80211/11_fix_wifi_mac', 'etc/board.d/01_leds', 'etc/board.d/02_network']:
+                     'etc/hotplug.d/ieee80211/11_fix_wifi_mac', 'etc/board.d/01_leds', 'etc/board.d/02_network',
+                     'etc/uci-defaults/31_hkc_stock_env']:
             expected = (ROOT / 'target/linux/mediatek/filogic/base-files' / name).read_bytes().replace(b'\r\n', b'\n')
             need(member(name) == expected, 'migration helper differs: ' + name)
         # Carry forward the stable workflow's source-to-image UI/default checks.
@@ -166,6 +186,9 @@ def check_root(root, unsquashfs):
              '70f4115597cfe7610e3ccc2fae18ad27690e8f888a6910aa36f7ed9c4177737e', 'bilingual catalog differs')
         lib = member('lib/libfstools.so')
         need(b'netcore,n60-pro-stock-slot1' in lib and b'hkc_data' in lib, 'private-overlay fstools not included')
+        block = member('sbin/block')
+        need(b'netcore,n60-pro-stock-slot1' in block and b'hkc_data' in block,
+             'stock configuration isolation missing from block extroot')
 
 
 def metadata(path, fwtool):
