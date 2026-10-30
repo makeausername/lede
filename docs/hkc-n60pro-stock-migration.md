@@ -2,7 +2,7 @@
 
 目标：用户在原厂网页上传专用首次安装包，升级并重启进入 HKC。SSH 仅用于备份、检查和纯校验，不作为交付的刷机方式。
 
-当前状态：源码与离线检查已完成，新增隔离测试构建流程。是否已生成镜像以对应 GitHub Actions 运行和产物验收报告为准；尚未验证实机启动。没有向路由器上传、刷机、重启、修改配置或合并到 master。master 工作流不用于此 target。由于新工作流登记未成功，仅在当前迁移分支将已登记的 openwrt-ci.yml 改为手动转接入口，调用 hkc-n60pro-stock.yml；master 上的文件不改。稳定工作流原文以相同 SHA256 保存至 custom/hkc-n60pro-stable-workflow.yml，用于构建步骤对比。
+当前状态：源码与离线检查已完成，新增隔离测试构建流程。是否已生成镜像以对应 GitHub Actions 运行和产物验收报告为准；尚未验证实机启动。没有向路由器上传、刷机、重启、修改配置或合并到 master。现有 master 工作流不用于此 target。
 
 基线为 6cb7723430091ab26c3b734b95c743e10eccafa4，独立分支 codex/n60pro-stock-migration。新配置仅切换设备 target，继承稳定 N60 PRO 的应用配置及补丁。稳定 master 和 AX6000 分支保持不变。这代表预期功能相同，不代表新 target 已通过实机验收。
 
@@ -40,13 +40,13 @@
 
 - scripts/test-hkc-n60pro-stock.py：稳定源码隔离、配置一致性、硬件及容量负例、shell 语法、平台分流和 stage2 失败退出。--references 配合 --patch-tool 检查 Linux 6.12.95 与固定 fstools 源码零 fuzz 应用。
 - scripts/test-hkc-n60pro-runtime.py：合成 FIT/DTB、元数据隔离、tar 成员拒绝、模拟 MTD/挂载状态、overlay 创建与复用、空间边界、11处写操作故障、根/内核读回不符、配置恢复失败、其他型号/initramfs 隔离和 Wi-Fi MAC 对比。所有写入工具均被模拟，不连接路由器。
-- scripts/test-hkc-n60pro-build.py：验证固定 feeds、稳定版构建和验收步骤没有遗漏，仅选择候选 target，并检查真实镜像验证失败时不生成成功报告。合计28项 unittest，另有 shell 和补丁检查。
+- scripts/test-hkc-n60pro-build.py：验证固定 feeds、稳定版构建和验收步骤没有遗漏，仅选择候选 target，并检查真实镜像验证失败时不生成成功报告。合计27项 unittest，另有 shell 和补丁检查。
 - Windows 需 Python 3 和 Git Bash；受限沙箱不能启动 Git Bash 时，不能把此主机限制误判为源码失败。
 - scripts/hkc_n60pro_stock_check.py 始终返回 release_ready=false。源测试与零 fuzz 不等于交叉编译、实际镜像验收或实机启动通过。
 
 ## 下一阶段关口
 
-1. 使用独立 .github/workflows/hkc-n60pro-stock.yml 构建新 target：推送 hkc-n60pro-stock-test-* 专用标签触发；另仅在 codex/n60pro-stock-migration 分支修改该工作流文件时触发，用于首次登记工作流。不监听 master 或 AX6000 分支推送。并发组固定，cancel-in-progress=false。固定 feeds、应用补丁和稳定版产物验收均保留。
+1. 使用独立 .github/workflows/hkc-n60pro-stock.yml 构建新 target：推送 hkc-n60pro-stock-test-* 专用标签触发；不监听 master 或其他分支推送。并发组固定，cancel-in-progress=false。固定 feeds、应用补丁和稳定版产物验收均保留。
 2. 构建末尾运行 scripts/verify-hkc-n60pro-stock-build.py 检查真实 FIT/DTB 与运行文件，再上传专用 research artifact，包含 manifest、diffconfig、profiles、镜像及 ARTIFACT-SHA256SUMS。专项报告记录完整源码提交、实际载荷大小和所需 LEB；真实设备剩余容量仍需重新只读检查。本流程不生成原厂网页首次安装包。
 3. 明确可验证的 Bootloader 恢复路径，评估当前没有串口时的首次启动风险。
 4. 对最终候选只使用明确的 sysupgrade -T 纯校验路径；不取消签名检查、不强刷、不在网页上传试探。校验通过本身不证明可启动。
