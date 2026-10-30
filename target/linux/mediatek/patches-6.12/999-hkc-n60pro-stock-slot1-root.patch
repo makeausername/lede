@@ -1,0 +1,43 @@
+--- a/drivers/mtd/ubi/block.c
++++ b/drivers/mtd/ubi/block.c
+@@ -42,6 +42,7 @@
+ #include <linux/idr.h>
+ #include <asm/div64.h>
+ #include <linux/root_dev.h>
++#include <linux/of.h>
+ 
+ #include "ubi-media.h"
+ #include "ubi.h"
+@@ -347,6 +348,14 @@
+ 	return 0;
+ }
+ 
++/* Only this dedicated profile may select the vendor's second root volume. */
++static bool hkc_is_rootfs(const char *name)
++{
++	return !strcmp(name,
++		of_machine_is_compatible("netcore,n60-pro-stock-slot1") ?
++		"rootfs2" : "rootfs");
++}
++
+ int ubiblock_create(struct ubi_volume_info *vi)
+ {
+ 	struct queue_limits lim = {
+@@ -433,7 +442,7 @@
+ 		 dev->ubi_num, dev->vol_id, vi->name);
+ 	mutex_unlock(&devices_mutex);
+ 
+-	if (!strcmp(vi->name, "rootfs") &&
++	if (hkc_is_rootfs(vi->name) &&
+ 	    IS_ENABLED(CONFIG_MTD_ROOTFS_ROOT_DEV) &&
+ 	    ROOT_DEV == 0) {
+ 		pr_notice("ubiblock: device ubiblock%d_%d (%s) set to be root filesystem\n",
+@@ -602,7 +611,7 @@
+ 	int ret, is_ubifs;
+ 	struct ubi_volume_desc *desc;
+ 
+-	if (strcmp(vi->name, "rootfs") &&
++	if (!hkc_is_rootfs(vi->name) &&
+ 	    strcmp(vi->name, "fit"))
+ 		return;
+ 

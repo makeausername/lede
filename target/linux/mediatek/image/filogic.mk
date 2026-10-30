@@ -877,6 +877,16 @@ define Device/netcore_n60-pro
 endef
 TARGET_DEVICES += netcore_n60-pro
 
+# Experimental slot-1 target. No factory image is exported until migration gates pass.
+# Do not add the vendor's generic board alias to the maintenance image.
+define Device/netcore_n60-pro-stock-slot1
+  $(Device/netcore_n60-pro)
+  DEVICE_MODEL := N60 PRO (stock slot 1 candidate)
+  DEVICE_DTS := mt7986a-netcore-n60-pro-stock-slot1
+  SUPPORTED_DEVICES := netcore,n60-pro-stock-slot1
+endef
+TARGET_DEVICES += netcore_n60-pro-stock-slot1
+
 define Device/nokia_ea0326gmp
   DEVICE_VENDOR := Nokia
   DEVICE_MODEL := EA0326GMP

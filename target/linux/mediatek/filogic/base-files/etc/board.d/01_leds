@@ -53,7 +53,8 @@ nokia,ea0326gmp)
 	ucidef_set_led_netdev "lan" "LAN" "green:lan" "br-lan"
 	ucidef_set_led_netdev "wan" "WAN" "green:wan" "eth1"
 	;;
-netcore,n60-pro)
+netcore,n60-pro|\
+netcore,n60-pro-stock-slot1)
 	ucidef_set_led_netdev "wan" "WAN" "blue:wan" "eth1" "link tx rx"
 	;;
 openembed,som7981)

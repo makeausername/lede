@@ -1,5 +1,5 @@
 REQUIRE_IMAGE_METADATA=1
-RAMFS_COPY_BIN='fitblk'
+RAMFS_COPY_BIN='fitblk head tr sha256sum'
 
 asus_initial_setup()
 {
@@ -16,6 +16,11 @@ platform_do_upgrade() {
 	local board=$(board_name)
 
 	case "$board" in
+	netcore,n60-pro-stock-slot1)
+		# Exit the stage2 shell on error: do not print success or force a reboot.
+		hkc_slot1_write "$1" || { echo "HKC slot1 upgrade failed; no success/reboot" >&2; exit 1; }
+		return 0
+		;;
 	asus,tuf-ax4200|\
 	asus,tuf-ax6000)
 		CI_UBIPART="UBI_DEV"
@@ -74,6 +79,10 @@ platform_check_image() {
 	[ "$#" -gt 1 ] && return 1
 
 	case "$board" in
+	netcore,n60-pro-stock-slot1)
+		hkc_slot1_check "$1"
+		return $?
+		;;
 	bananapi,bpi-r3|\
 	bananapi,bpi-r4|\
 	bananapi,bpi-r4-2g5|\

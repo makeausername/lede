@@ -1,0 +1,13 @@
+# Only the dedicated stock-slot1 target may create its private overlay volume.
+hkc_stock_overlay_preinit() {
+    [ "${INITRAMFS:-0}" = 1 ] && return 0
+    . /lib/upgrade/hkc-n60pro-slot1.sh
+    [ "$(hkc_slot1_board)" = netcore,n60-pro-stock-slot1 ] || return 0
+    . /lib/upgrade/nand.sh
+    if ! hkc_slot1_overlay; then
+        echo 'HKC: isolated overlay unavailable; settings may be volatile. Stock data was not modified.' >/dev/console
+        echo 'isolated overlay unavailable' >/tmp/hkc-stock-overlay-error
+        return 1
+    fi
+}
+boot_hook_add preinit_main hkc_stock_overlay_preinit

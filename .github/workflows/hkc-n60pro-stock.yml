@@ -1,0 +1,451 @@
+name: HKC N60 Pro Stock Migration Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "hkc-n60pro-stock-test-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hkc-n60pro-stock-migration
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build stock-slot1 research candidate
+    if: startsWith(github.ref, 'refs/tags/hkc-n60pro-stock-test-') || github.ref == 'refs/heads/codex/n60pro-stock-migration'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      TZ: Asia/Shanghai
+      WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
+      PACKAGES_REV: b4be6c8c8459bd3ce0096a1791a893c4df35b7e5
+      LUCI_REV: 349a4823afd41512fb7f1310966790ccaab8f8b8
+      ROUTING_REV: 56d7a818b71b83b0051b85d38efa3b3b558adf75
+      TELEPHONY_REV: a04b7acfd30a6f8f4d78e62955376c4febcb0976
+      HELLOWORLD_REV: 737e5d719030363dbf96224c9f065afa5ea6dba8
+
+    steps:
+      - name: Checkout firmware source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify isolated source and migration regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/test-hkc-n60pro-stock.py --shell /bin/bash
+          python3 scripts/test-hkc-n60pro-runtime.py --shell /bin/bash
+          python3 scripts/test-hkc-n60pro-build.py --shell /bin/bash
+          git diff --exit-code
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          docker image prune --all --force
+          df -h
+
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison \
+            build-essential bzip2 ccache clang cmake cpio curl \
+            device-tree-compiler ecj fastjar file flex g++-multilib gawk \
+            gcc-multilib genisoimage gettext git gperf \
+            haveged help2man intltool libelf-dev libfuse-dev libglib2.0-dev \
+            libgmp3-dev libc6-dev-i386 libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev \
+            libtool lrzsz msmtp ninja-build p7zip p7zip-full patch pkgconf \
+            python3 python3-pyelftools python3-setuptools qemu-utils rsync \
+            scons squashfs-tools subversion swig texinfo time uglifyjs unzip \
+            upx-ucl wget xmlto xxd zlib1g-dev
+          sudo apt-get clean
+
+      - name: Fetch and pin package feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp custom/feeds.conf.hkc feeds.conf
+          ./scripts/feeds update -a
+
+          pin_feed() {
+            local name="$1"
+            local revision="$2"
+            if ! git -C "feeds/${name}" cat-file -e "${revision}^{commit}" 2>/dev/null; then
+              git -C "feeds/${name}" fetch --depth=1 origin "$revision"
+            fi
+            git -C "feeds/${name}" checkout --detach "$revision"
+            test "$(git -C "feeds/${name}" rev-parse HEAD)" = "$revision"
+          }
+
+          pin_feed packages "$PACKAGES_REV"
+          pin_feed luci "$LUCI_REV"
+          pin_feed routing "$ROUTING_REV"
+          pin_feed telephony "$TELEPHONY_REV"
+          pin_feed helloworld "$HELLOWORLD_REV"
+          ./scripts/feeds update -a -i
+
+      - name: Apply helloworld/luci customizations
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssr_root='feeds/helloworld/luci-app-ssr-plus'
+
+          for patch in \
+            custom/patches/helloworld/110-force-blacklist-udp.patch \
+            custom/patches/helloworld/120-fix-xray-proto-mode.patch \
+            custom/patches/helloworld/121-fix-empty-socks-port.patch \
+            custom/patches/helloworld/122-hide-filter-aaaa.patch \
+            custom/patches/helloworld/123-fix-ssr-monitor.patch \
+            custom/patches/helloworld/124-fix-ssr-rules-empty-line.patch \
+            custom/patches/helloworld/125-fix-subscribe-ui.patch \
+            custom/patches/helloworld/126-subscribe-style-v5.patch \
+            custom/patches/helloworld/127-fix-subscription-ui-defaults.patch \
+            custom/patches/helloworld/128-hkc-stability-hardening.patch \
+            custom/patches/helloworld/129-hkc-boot-time-sync.patch; do
+            git -C feeds/helloworld apply --check "../../$patch"
+            git -C feeds/helloworld apply "../../$patch"
+          done
+
+          # 128: preserve the runtime accepted after router reboot and phone testing.
+          # This check exercises fixtures only; it does not execute router services.
+          python3 scripts/test-hkc-stability.py "$ssr_root"
+          python3 scripts/test-hkc-time-sync.py "$ssr_root"
+          test -x "$ssr_root/root/etc/init.d/hkc-stability"
+          test -x "$ssr_root/root/usr/libexec/hkc-ssr-health"
+          test -x "$ssr_root/root/usr/libexec/hkc-time-sync"
+          test -x "$ssr_root/root/usr/libexec/hkc-ssr-preflight"
+
+          grep -Fq 'forced proxy domains must win before the China-IP bypass' \
+            "$ssr_root/root/usr/bin/ssr-rules"
+
+          # 120: gen_config_file() must pass the network string (global $mode)
+          # to gen_config.lua, not the numeric code argument.
+          grep -Fq 'local code="$3"' "$ssr_root/root/etc/init.d/shadowsocksr"
+          ! grep -Fq 'local mode="$3"' "$ssr_root/root/etc/init.d/shadowsocksr"
+          ! grep -Fq 'case "$mode" in' "$ssr_root/root/etc/init.d/shadowsocksr"
+          grep -Fq 'lua /usr/share/shadowsocksr/gen_config.lua "$server" "$mode" "$local_port" "$socks_port" >"$config_file"' \
+            "$ssr_root/root/etc/init.d/shadowsocksr"
+          sh -n "$ssr_root/root/etc/init.d/shadowsocksr"
+
+          # 121: an empty socks port must normalize to "0" so no broken inbound
+          # is emitted when the global SOCKS5 proxy is disabled.
+          grep -Fq 'local socks_port     = (arg[4] and arg[4] ~= "") and arg[4] or "0"' \
+            "$ssr_root/root/usr/share/shadowsocksr/gen_config.lua"
+
+          # 122: hide the "Disable IPv6 for Overseas FQDN" toggle on the client
+          # page while keeping the stored value and runtime behavior unchanged.
+          ! grep -Fq 'filter_aaaa' "$ssr_root/luasrc/model/cbi/shadowsocksr/client.lua"
+
+          # 123: the monitor must not use `local` outside a function (busybox
+          # ash crashes), must match the redir binary used on this firmware,
+          # and must schedule recovery outside its own service lifecycle.
+          # Match a dedicated PID file so BusyBox does not match unrelated shells.
+          grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" \
+            "$ssr_root/root/usr/bin/ssr-monitor"
+          ! grep -Fq 'local tcp_expected=' "$ssr_root/root/usr/bin/ssr-monitor"
+          grep -Fq 'start-stop-daemon -S -b -m -p /var/run/ssr-recovery.pid -x /bin/sh' "$ssr_root/root/usr/bin/ssr-monitor"
+          grep -Fq 'trap "rm -f /var/run/ssr-recovery.pid" EXIT' "$ssr_root/root/usr/bin/ssr-monitor"
+          grep -Fq 'sleep 1; /etc/init.d/shadowsocksr restart' "$ssr_root/root/usr/bin/ssr-monitor"
+          ! grep -Eq '^[[:space:]]*/etc/init.d/shadowsocksr restart([[:space:]]|$)' \
+            "$ssr_root/root/usr/bin/ssr-monitor"
+          sh -n "$ssr_root/root/usr/bin/ssr-monitor"
+
+          # 124: gen_spec_iplist() must not emit blank lines into `ipset -R`.
+          grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_root/root/usr/bin/ssr-rules"
+          sh -n "$ssr_root/root/usr/bin/ssr-rules"
+
+          # 125: simplified subscribe UI; "Through proxy update" defaults off.
+          ! grep -Fq 'config_auto_update_mode' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          ! grep -Fq 'url_test_url' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          ! grep -Fq '_subscribe_advanced_toggle' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+          grep -A4 'Through proxy update' "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua" | grep -Fq 'o.default = "0"'
+
+          # 127: retain v4 polish, replace v5 overrides with a scoped flex row.
+          grep -Fq 'v4 UI polish' "$ssr_root/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm"
+          grep -Fq 'align only the daily schedule row' "$ssr_root/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm"
+          ! grep -Fq 'v5: compact schedule select' "$ssr_root/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm"
+          for label in 'Subscription Update' 'Update Time (Daily)' 'Node Filters' 'New Node Defaults' 'Subscription Actions'; do
+            grep -Fq "translate(\"$label\")" "$ssr_root/luasrc/model/cbi/shadowsocksr/servers.lua"
+            grep -Fxq "msgid \"$label\"" "$ssr_root/po/zh_Hans/hkc-ssr-ui.po"
+          done
+          grep -Fq 'stringify(translate("Subscription finished. Returning in %s seconds."))' "$ssr_root/luasrc/view/shadowsocksr/subscribe.htm"
+          grep -Fxq 'msgid "Subscription finished. Returning in %s seconds."' "$ssr_root/po/zh_Hans/hkc-ssr-ui.po"
+          sh scripts/test-hkc-subscription-defaults.sh "$ssr_root"
+
+          git -C feeds/luci apply --check \
+            ../../custom/patches/luci/130-hide-argon-version-footer.patch
+          git -C feeds/luci apply \
+            ../../custom/patches/luci/130-hide-argon-version-footer.patch
+          for footer in \
+            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut \
+            feeds/luci/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut; do
+            ! grep -Fq '<footer' "$footer"
+            ! grep -Fq 'Powered by {{ version.luciname }}' "$footer"
+            ! grep -Fq 'ArgonTheme' "$footer"
+          done
+
+          ./scripts/feeds install -a
+
+      - name: Inject HKC defaults and forced proxy domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$WIFI_PASSWORD" =~ ^[A-Za-z0-9]{8,63}$ ]]; then
+            echo "::error::WIFI_PASSWORD must be 8-63 ASCII letters or digits"
+            exit 1
+          fi
+
+          install -d files/etc/uci-defaults files/usr/share/hkc
+          install -m 0755 custom/hkc-defaults.sh.in \
+            files/etc/uci-defaults/zz-hkc-minimal-defaults
+          install -m 0755 custom/hkc-lan-ipv4-only.sh \
+            files/etc/uci-defaults/zz-hkc-lan-ipv4-only
+          install -m 0644 custom/forced-proxy-domains.list \
+            files/usr/share/hkc/forced-proxy-domains.list
+          sed -i "s/__WIFI_PASSWORD__/${WIFI_PASSWORD}/g" \
+            files/etc/uci-defaults/zz-hkc-minimal-defaults
+
+          defaults='files/etc/uci-defaults/zz-hkc-minimal-defaults'
+          lan_defaults='files/etc/uci-defaults/zz-hkc-lan-ipv4-only'
+          sh -n "$lan_defaults"
+          python3 scripts/test-hkc-lan-ipv4-only.py "$lan_defaults"
+          sh -n "$defaults"
+          ! grep -Fq '__WIFI_PASSWORD__' "$defaults"
+          grep -Fq "ssid='HKC'" "$defaults"
+          grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq "hostname='HKC'" "$defaults"
+          grep -Fq 'wireless.${iface}.key=${WIFI_PASSWORD}' "$defaults"
+          grep -Fq "blacklist='/etc/ssrplus/black.list'" "$defaults"
+          ! grep -Eq 'network\.|firewall\.|upnpd\.|crontab|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
+
+          for domain in openai.com chatgpt.com anthropic.com claude.ai; do
+            grep -Fqx "$domain" files/usr/share/hkc/forced-proxy-domains.list
+          done
+          if grep -Ev '^(#.*|[a-z0-9.-]+|)$' files/usr/share/hkc/forced-proxy-domains.list; then
+            echo "::error::Forced-proxy list contains an invalid line"
+            exit 1
+          fi
+
+      - name: Generate and validate build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp configs/hkc-n60-pro-stock-slot1.config .config
+          make defconfig
+
+          require_config() {
+            grep -Fqx "$1" .config || {
+              echo "::error::Required config missing: $1"
+              exit 1
+            }
+          }
+          reject_config() {
+            if grep -Fqx "$1" .config; then
+              echo "::error::Forbidden config selected: $1"
+              exit 1
+            fi
+          }
+
+          require_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro-stock-slot1=y'
+          reject_config 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y'
+          test "$(grep -Ec '^CONFIG_TARGET_mediatek_filogic_DEVICE_.*=y$' .config)" = 1
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_Iptables_Transparent_Proxy=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ChinaDNS_NG=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Mihomo=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadow_TLS=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_NaiveProxy=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Simple_Obfs=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_V2ray_Plugin=y'
+          require_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y'
+          require_config 'CONFIG_PACKAGE_luci-theme-argon=y'
+          require_config 'CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y'
+          require_config 'CONFIG_PACKAGE_wpad-openssl=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Kcptun=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Server=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Server=y'
+          reject_config 'CONFIG_PACKAGE_luci-app-upnp=y'
+          reject_config 'CONFIG_PACKAGE_kmod-tcp-bbr=y'
+
+          ./scripts/diffconfig.sh | tee hkc-n60-pro-stock-slot1.diffconfig
+
+      - name: Download source packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! timeout --signal=TERM --kill-after=30s 25m make download -j8; then
+            echo "::warning::Parallel download failed; retrying serially"
+            find dl -type f -size -1024c -print -delete
+            timeout --signal=TERM --kill-after=30s 25m make download -j1 V=s
+          fi
+          find dl -type f -size -1024c -print -delete
+
+      - name: Compile firmware
+        shell: bash
+        run: |
+          set -o pipefail
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Verify firmware scope and package manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_dir='bin/targets/mediatek/filogic'
+          firmware="$(find "$target_dir" -maxdepth 1 -type f \
+            -name '*netcore_n60-pro-stock-slot1*sysupgrade.bin' -print -quit)"
+          manifest="$(find "$target_dir" -maxdepth 1 -type f \
+            -name '*netcore_n60-pro-stock-slot1*.manifest' -print -quit)"
+          test -n "$firmware"
+          test -n "$manifest"
+
+          for package in \
+            xray-core mihomo naiveproxy shadow-tls shadowsocks-rust-sslocal \
+            simple-obfs-client v2ray-plugin shadowsocksr-libev-ssr-local \
+            shadowsocksr-libev-ssr-redir chinadns-ng luci-app-ssr-plus \
+            luci-i18n-ssr-plus-zh-cn luci-theme-argon; do
+            grep -Eq "^${package} " "$manifest" || {
+              echo "::error::Required package missing from manifest: ${package}"
+              exit 1
+            }
+          done
+          ! grep -Eq '^(3proxy|kcptun-client|shadowsocks-rust-ssserver|shadowsocksr-libev-ssr-server) ' "$manifest"
+
+          inspect_dir="$(mktemp -d)"
+          trap 'sudo rm -rf "$inspect_dir"' EXIT
+          tar -xf "$firmware" -C "$inspect_dir"
+          root_image="$(find "$inspect_dir" -type f -name root -print -quit)"
+          test -n "$root_image"
+
+          defaults="$inspect_dir/defaults"
+          lan_defaults="$inspect_dir/lan-ipv4-only"
+          domains="$inspect_dir/domains"
+          ssr_init="$inspect_dir/ssr-init"
+          ssr_monitor="$inspect_dir/ssr-monitor"
+          ssr_generator="$inspect_dir/gen-config.lua"
+          ssr_rules="$inspect_dir/ssr-rules"
+          ssr_servers="$inspect_dir/servers.lua"
+          ssr_style="$inspect_dir/style.htm"
+          ssr_subscribe="$inspect_dir/subscribe.htm"
+          ssr_default_config="$inspect_dir/shadowsocksr.config"
+          ssr_firstboot="$inspect_dir/luci-ssr-plus"
+          ssr_ui_lmo="$inspect_dir/hkc-ssr-ui.zh-cn.lmo"
+          argon_footer="$inspect_dir/argon-footer.ut"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-minimal-defaults >"$defaults"
+          unsquashfs -cat "$root_image" etc/uci-defaults/zz-hkc-lan-ipv4-only >"$lan_defaults"
+          unsquashfs -cat "$root_image" usr/share/hkc/forced-proxy-domains.list >"$domains"
+          unsquashfs -cat "$root_image" etc/init.d/shadowsocksr >"$ssr_init"
+          unsquashfs -cat "$root_image" usr/bin/ssr-monitor >"$ssr_monitor"
+          unsquashfs -cat "$root_image" usr/share/shadowsocksr/gen_config.lua >"$ssr_generator"
+          unsquashfs -cat "$root_image" usr/bin/ssr-rules >"$ssr_rules"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua >"$ssr_servers"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/view/shadowsocksr/servers_subscribe_url_style.htm >"$ssr_style"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/view/shadowsocksr/subscribe.htm >"$ssr_subscribe"
+          unsquashfs -cat "$root_image" usr/share/shadowsocksr/shadowsocksr.config >"$ssr_default_config"
+          unsquashfs -cat "$root_image" etc/uci-defaults/luci-ssr-plus >"$ssr_firstboot"
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/i18n/hkc-ssr-ui.zh-cn.lmo >"$ssr_ui_lmo"
+          unsquashfs -cat "$root_image" usr/share/ucode/luci/template/themes/argon/footer.ut >"$argon_footer"
+
+          grep -Fq "ssid='HKC'" "$defaults"
+          grep -Fq "ssid='HKC-5G'" "$defaults"
+          grep -Fq "hostname='HKC'" "$defaults"
+          cmp "$lan_defaults" custom/hkc-lan-ipv4-only.sh
+          sh -n "$lan_defaults"
+          grep -Fqx 'openai.com' "$domains"
+          grep -Fqx 'chatgpt.com' "$domains"
+          ! grep -Eq 'network\.|firewall\.|upnpd\.|/sbin/reboot|shadowsocksr\.@global|server_subscribe' "$defaults"
+          cmp "$ssr_init" feeds/helloworld/luci-app-ssr-plus/root/etc/init.d/shadowsocksr
+          cmp "$ssr_monitor" feeds/helloworld/luci-app-ssr-plus/root/usr/bin/ssr-monitor
+          cmp "$ssr_generator" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/gen_config.lua
+          cmp "$ssr_servers" feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua
+          cmp "$ssr_style" feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/servers_subscribe_url_style.htm
+          cmp "$ssr_subscribe" feeds/helloworld/luci-app-ssr-plus/luasrc/view/shadowsocksr/subscribe.htm
+          cmp "$ssr_default_config" feeds/helloworld/luci-app-ssr-plus/root/usr/share/shadowsocksr/shadowsocksr.config
+          cmp "$ssr_firstboot" feeds/helloworld/luci-app-ssr-plus/root/etc/uci-defaults/luci-ssr-plus
+          # Verify every accepted stability runtime file was packaged unchanged.
+          while read -r expected runtime_file; do
+            case "$expected" in ''|\#*) continue ;; esac
+            unsquashfs -cat "$root_image" "$runtime_file" >"$inspect_dir/stability-file"
+            echo "$expected  $inspect_dir/stability-file" | sha256sum -c -
+          done < custom/hkc-stability-runtime.sha256
+          unsquashfs -cat "$root_image" usr/lib/lua/luci/model/cbi/shadowsocksr/advanced.lua >"$inspect_dir/advanced.lua"
+          cmp "$inspect_dir/advanced.lua" feeds/helloworld/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua
+          # Match the six-entry Chinese catalog accepted on the router.
+          echo "70f4115597cfe7610e3ccc2fae18ad27690e8f888a6910aa36f7ed9c4177737e  $ssr_ui_lmo" | sha256sum -c -
+          ! grep -Fq 'config_auto_update_mode' "$ssr_servers"
+          ! grep -Fq '_subscribe_advanced_toggle' "$ssr_servers"
+          ! grep -Fq 'url_test_url' "$ssr_servers"
+          grep -A4 'Through proxy update' "$ssr_servers" | grep -Fq 'o.default = "0"'
+          grep -Fq 'v4 UI polish' "$ssr_style"
+          grep -Fq 'align only the daily schedule row' "$ssr_style"
+          grep -Fq 'local code="$3"' "$ssr_init"
+          ! grep -Fq 'local mode="$3"' "$ssr_init"
+          ! grep -Fq 'case "$mode" in' "$ssr_init"
+          grep -Fq 'gen_config.lua "$server" "$mode" "$local_port" "$socks_port"' "$ssr_init"
+          grep -Fq '(arg[4] and arg[4] ~= "")' "$ssr_generator"
+          grep -Fq 'forced proxy domains must win before the China-IP bypass' "$ssr_rules"
+          grep -Fq "match_proc_count 'ssr-retcp|ssr-redir|ss-redir|v2ray run'" "$ssr_monitor"
+          grep -Fq 'start-stop-daemon -S -b -m -p /var/run/ssr-recovery.pid -x /bin/sh' "$ssr_monitor"
+          grep -Fq 'trap "rm -f /var/run/ssr-recovery.pid" EXIT' "$ssr_monitor"
+          grep -Fq 'sleep 1; /etc/init.d/shadowsocksr restart' "$ssr_monitor"
+          ! grep -Eq '^[[:space:]]*/etc/init.d/shadowsocksr restart([[:space:]]|$)' "$ssr_monitor"
+          grep -Fq "cat <<-EOF | sed '/^$/d'" "$ssr_rules"
+          ! grep -Fq '<footer' "$argon_footer"
+          ! grep -Fq 'Powered by' "$argon_footer"
+
+          sha256sum "$firmware" | tee "$target_dir/HKC-N60-PRO-STOCK-SLOT1-SHA256SUMS"
+
+      - name: Verify stock-slot1 FIT and runtime from actual image
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_dir='bin/targets/mediatek/filogic'
+          mapfile -t images < <(find "$target_dir" -maxdepth 1 -type f -name '*netcore_n60-pro-stock-slot1*sysupgrade.bin')
+          test "${#images[@]}" = 1
+          python3 scripts/verify-hkc-n60pro-stock-build.py \
+            --image "${images[0]}" --fwtool staging_dir/host/bin/fwtool \
+            --unsquashfs "$(command -v unsquashfs)" --commit "$GITHUB_SHA" \
+            --report "$target_dir/HKC-N60-PRO-STOCK-SLOT1-VERIFICATION.json"
+
+      - name: Prepare research candidate artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          target_dir='bin/targets/mediatek/filogic'
+          find "$target_dir" -maxdepth 1 -type f \
+            \( -name '*netcore_n60-pro-stock-slot1*' \
+               -o -name 'HKC-N60-PRO-STOCK-SLOT1-SHA256SUMS' \
+               -o -name 'HKC-N60-PRO-STOCK-SLOT1-VERIFICATION.json' \
+               -o -name 'profiles.json' \
+               -o -name 'sha256sums' \) \
+            -exec cp -v {} artifact/ \;
+          cp -v hkc-n60-pro-stock-slot1.diffconfig artifact/
+          cp docs/hkc-n60pro-stock-migration.md artifact/
+          printf '%s\n' \
+            'RESEARCH CANDIDATE - NOT APPROVED FOR FLASHING' \
+            'This sysupgrade image is for netcore,n60-pro-stock-slot1 only.' \
+            'Do not upload it to original vendor Web UI or a standard N60 PRO.' \
+            'No original-Web first-install package is generated by this build.' \
+            'Boot compatibility, recovery and real-device acceptance remain unverified.' \
+            "Source commit: $GITHUB_SHA" >artifact/READ-ME-FIRST.txt
+          (cd artifact && sha256sum -- *.bin *.manifest *.diffconfig *.json *.md *.txt >ARTIFACT-SHA256SUMS)
+          test -n "$(find artifact -maxdepth 1 -type f -name '*sysupgrade.bin' -print -quit)"
+
+      - name: Upload HKC N60 Pro stock-slot1 research artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HKC-N60-PRO-STOCK-SLOT1-RESEARCH-${{ github.run_number }}-${{ github.sha }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 7
