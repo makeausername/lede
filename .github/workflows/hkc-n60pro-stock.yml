@@ -1,6 +1,7 @@
 name: HKC N60 Pro Stock Migration Candidate
 
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches:

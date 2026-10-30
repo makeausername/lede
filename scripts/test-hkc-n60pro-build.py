@@ -46,7 +46,7 @@ class BuildTests(unittest.TestCase):
                 kernel.side_effect=None;root.side_effect=ValueError('bad runtime')
                 with self.assertRaises(ValueError): verify.verify(image,Path('fwtool'),Path('unsquashfs'),'0'*40)
     def test_stable_build_steps_preserved(self):
-        stable=(ROOT/'.github/workflows/openwrt-ci.yml').read_text()
+        stable=(ROOT/'custom/hkc-n60pro-stable-workflow.yml').read_text()
         candidate=(ROOT/'.github/workflows/hkc-n60pro-stock.yml').read_text()
         old,new=steps(stable),steps(candidate)
         for name in ['Checkout firmware source','Free runner disk space','Install build dependencies',
@@ -74,6 +74,15 @@ class BuildTests(unittest.TestCase):
         self.assertNotIn('package-hkc-n60pro-stock.py',text)
         self.assertNotIn('backup/',text);self.assertNotIn('preflight.txt',text)
         self.assertIn('cancel-in-progress: false',text)
+    def test_registered_entrypoint_only_calls_candidate(self):
+        entry=(ROOT/'.github/workflows/openwrt-ci.yml').read_text()
+        self.assertIn('uses: ./.github/workflows/hkc-n60pro-stock.yml',entry)
+        self.assertIn('codex/n60pro-stock-migration',entry)
+        self.assertIn('  workflow_dispatch:',entry)
+        self.assertNotIn('  push:',entry)
+        self.assertNotIn('master',entry)
+        self.assertNotIn('run:',entry)
+        self.assertIn('  workflow_call:',(ROOT/'.github/workflows/hkc-n60pro-stock.yml').read_text())
     def test_all_run_blocks_have_valid_bash_syntax(self):
         for name,body in steps((ROOT/'.github/workflows/hkc-n60pro-stock.yml').read_text()).items():
             if '        run: |\n' not in body:continue

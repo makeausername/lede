@@ -5,7 +5,7 @@
     "custom/hkc-defaults.sh.in": "0065befdfc9d1a6811f1bb2e42869bb655c8beb689a01fd1433dfaeb60819f60",
     "custom/hkc-lan-ipv4-only.sh": "836823a48b94d8dc4327b155bb4ea7108a1fde5a6d0b7021d3ceb8e7aa6190c5",
     "custom/hkc-stability-runtime.sha256": "edfdc8d846a3089d2efebda92ac667a5c2d11de87cb1d4641f5e932cf131b65f",
-    ".github/workflows/openwrt-ci.yml": "4bfcb606c6d43b836f16784ec7c9273c4f50d06015132fb30fa544263c98c3da",
-    "target/linux/mediatek/dts/mt7986a-netcore-n60-pro.dts": "906337a6cb2db921adc24ffacf7753156f918ad5ac98d56f1d9792a1d4c3696e"
+    "target/linux/mediatek/dts/mt7986a-netcore-n60-pro.dts": "906337a6cb2db921adc24ffacf7753156f918ad5ac98d56f1d9792a1d4c3696e",
+    "custom/hkc-n60pro-stable-workflow.yml": "4bfcb606c6d43b836f16784ec7c9273c4f50d06015132fb30fa544263c98c3da"
   }
 }
