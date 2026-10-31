@@ -5,6 +5,11 @@ START=99
 
 start()
 {
+	# PAIQ uses netifd packet steering and irqbalance. A CPU count is not an
+	# RPS bitmask (4 would pin processing to CPU2). Keep status helpers only.
+	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+		paiq-ec3-bt19d4l) return 0 ;;
+	esac
 	rfc=4096
 	cc=$(grep -c processor /proc/cpuinfo)
 	rsfe=$(echo $cc*$rfc | bc)

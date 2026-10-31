@@ -4,6 +4,13 @@ platform_check_image() {
 	local diskdev partdev diff
 	[ "$#" -gt 1 ] && return 1
 
+	case "$(cat /tmp/sysinfo/board_name)" in
+		paiq-ec3-bt19d4l)
+			REQUIRE_IMAGE_METADATA=1
+			fwtool_check_image "$1" || return 1
+			;;
+	esac
+
 	case "$(get_magic_word "$1")" in
 		eb48|eb63) ;;
 		*)
@@ -23,6 +30,19 @@ platform_check_image() {
 	get_image_dd "$1" of=/tmp/image.bs count=63 bs=512b
 
 	get_partitions /tmp/image.bs image
+
+	# This appliance must retain its audited GPT partition geometry.
+	case "$(cat /tmp/sysinfo/board_name)" in
+		paiq-ec3-bt19d4l)
+			for map in /tmp/partmap.bootdisk /tmp/partmap.image; do
+				if ! printf '%2d %5d %7d\n' 1 512 131072 2 131584 1835008 | cmp -s - "$map"; then
+					v "PAIQ partition layout differs; refusing automatic disk repartition."
+					rm -f /tmp/image.bs /tmp/partmap.bootdisk /tmp/partmap.image
+					return 1
+				fi
+			done
+			;;
+	esac
 
 	#compare tables
 	diff="$(grep -F -x -v -f /tmp/partmap.bootdisk /tmp/partmap.image)"
