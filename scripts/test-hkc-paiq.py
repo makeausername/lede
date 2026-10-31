@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 import zlib
 
@@ -19,6 +20,8 @@ spec = importlib.util.spec_from_file_location('image', REPO / 'scripts/verify-hk
 image = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(image)
 SHELL = os.environ.get('HKC_TEST_SHELL') or shutil.which('bash') or shutil.which('sh')
+if os.environ.get('GITHUB_ACTIONS') == 'true':
+    assert os.name == 'posix' and shutil.which('mksquashfs') and shutil.which('unsquashfs'), 'CI must run the real SquashFS regression'
 
 def fixture_gpt():
     d = bytearray(34 * 512)
@@ -57,6 +60,66 @@ class ImageTests(unittest.TestCase):
     def test_non_bootable_mbr(self):
         d=fixture_gpt(); d[:2]=b'\0\0'
         with self.assertRaisesRegex(ValueError, 'BIOS GRUB'): image.inspect_gpt(d)
+
+
+class BinaryLinkTests(unittest.TestCase):
+    LINK = b'lrwxrwxrwx root/root 19 2026-10-31 00:00 squashfs-root/usr/bin/mihomo -> /usr/libexec/mihomo\n'
+    TARGET = b'-rwxr-xr-x root/root 64 2026-10-31 00:00 squashfs-root/usr/libexec/mihomo\n'
+    ELF = b'\x7fELF\x02' + bytes(13) + b'\x3e\x00' + bytes(44)
+
+    def test_absolute_alternatives_link_reads_in_image_target(self):
+        with patch.object(image, 'run', side_effect=[self.LINK, self.TARGET, self.ELF]) as call:
+            self.assertEqual(image.read_proxy_binary('fixture.squashfs', 'usr/bin/mihomo'), self.ELF)
+            self.assertEqual(call.call_args.args, ('unsquashfs', '-cat', 'fixture.squashfs', 'usr/libexec/mihomo'))
+
+    def test_wrong_link_rejected(self):
+        with patch.object(image, 'run', return_value=self.LINK.replace(b'-> /usr/libexec/mihomo', b'-> /tmp/mihomo')):
+            with self.assertRaisesRegex(ValueError, 'link missing or incorrect'):
+                image.read_proxy_binary('fixture', 'usr/bin/mihomo')
+
+    def test_missing_link_rejected(self):
+        with patch.object(image, 'run', return_value=b''):
+            with self.assertRaisesRegex(ValueError, 'link missing or incorrect'):
+                image.read_proxy_binary('fixture', 'usr/bin/mihomo')
+
+    def test_non_executable_target_rejected(self):
+        with patch.object(image, 'run', side_effect=[self.LINK, self.TARGET.replace(b'-rwxr-xr-x', b'-rw-r--r--')]):
+            with self.assertRaisesRegex(ValueError, 'target missing or not executable'):
+                image.read_proxy_binary('fixture', 'usr/bin/mihomo')
+
+    def test_dangling_target_rejected(self):
+        with patch.object(image, 'run', side_effect=[self.LINK, b'']):
+            with self.assertRaisesRegex(ValueError, 'target missing or not executable'):
+                image.read_proxy_binary('fixture', 'usr/bin/mihomo')
+
+    def test_regular_binary_read_unchanged(self):
+        with patch.object(image, 'run', return_value=self.ELF) as call:
+            self.assertEqual(image.read_proxy_binary('fixture', 'usr/bin/xray'), self.ELF)
+            call.assert_called_once_with('unsquashfs', '-cat', 'fixture', 'usr/bin/xray')
+
+    @unittest.skipUnless(os.name == 'posix' and shutil.which('mksquashfs') and shutil.which('unsquashfs'),
+                         'Real SquashFS link regression requires Linux squashfs-tools (mandatory in CI)')
+    def test_real_squashfs_absolute_link_and_dangling_target(self):
+        with tempfile.TemporaryDirectory(prefix='paiq-link-') as temp:
+            base = Path(temp)
+            tree = base / 'root'
+            (tree / 'usr/bin').mkdir(parents=True)
+            (tree / 'usr/libexec').mkdir(parents=True)
+            target = tree / 'usr/libexec/mihomo'
+            target.write_bytes(self.ELF)
+            target.chmod(0o755)
+            (tree / 'usr/bin/mihomo').symlink_to('/usr/libexec/mihomo')
+            for present in (True, False):
+                if not present:
+                    target.unlink()
+                rootfs = base / ('valid.squashfs' if present else 'dangling.squashfs')
+                subprocess.run(['mksquashfs', str(tree), str(rootfs), '-noappend', '-processors', '1', '-quiet'],
+                               check=True, stdout=subprocess.DEVNULL)
+                if present:
+                    self.assertEqual(image.read_proxy_binary(rootfs, 'usr/bin/mihomo'), self.ELF)
+                else:
+                    with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                        image.read_proxy_binary(rootfs, 'usr/bin/mihomo')
 
 class ShellTests(unittest.TestCase):
     def setUp(self):

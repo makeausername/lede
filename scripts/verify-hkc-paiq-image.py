@@ -68,6 +68,24 @@ def decompress_image(source, dest):
 def run(*args):
     return subprocess.check_output([str(a) for a in args])
 
+
+def read_proxy_binary(root, path):
+    # The pinned Mihomo package installs an absolute alternatives link. Older
+    # unsquashfs -cat cannot follow that link inside the image. Verify BOTH
+    # the entrypoint and its packaged executable, never a host filesystem path.
+    if path == 'usr/bin/mihomo':
+        target = 'usr/libexec/mihomo'
+        listing = run('unsquashfs', '-ll', root, path).decode()
+        entries = [line for line in listing.splitlines()
+                   if line.startswith('l') and line.endswith('/' + path + ' -> /' + target)]
+        require(len(entries) == 1, 'Mihomo alternatives link missing or incorrect')
+        listing = run('unsquashfs', '-ll', root, target).decode()
+        require(any(line.startswith('-rwx') and line.endswith('/' + target)
+                    for line in listing.splitlines()), 'Mihomo target missing or not executable')
+        path = target
+    return run('unsquashfs', '-cat', root, path)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--image', type=Path, required=True)
@@ -139,12 +157,13 @@ def main():
     require(len(runtime) == 12, 'Accepted runtime inventory changed')
     binaries = ('usr/bin/xray', 'usr/bin/mihomo', 'usr/bin/naive', 'usr/bin/shadow-tls', 'usr/bin/sslocal', 'usr/bin/kcptun-client')
     for path in binaries:
-        elf = cat(path)
-        require(elf[:5] == b'\x7fELF\x02' and struct.unpack_from('<H', elf, 18)[0] == 62, 'Wrong CPU binary: ' + path)
+        elf = read_proxy_binary(root, path)
+        require(len(elf) >= 20 and elf[:5] == b'\x7fELF\x02' and struct.unpack_from('<H', elf, 18)[0] == 62, 'Wrong CPU binary: ' + path)
     info.update({'source_commit': a.source_commit, 'firmware': a.image.name,
                  'sha256': sha(a.image), 'raw_image_sha256': sha(raw), 'squashfs_bytes_used': used,
                  'runtime_sha256': runtime, 'source_files_verified': list(pairs),
                  'boot_components_verified': True, 'x86_64_binaries_verified': list(binaries),
+                 'binary_entrypoint_links': {'usr/bin/mihomo': '/usr/libexec/mihomo'},
                  'limitations': ['First boot, retained configuration migration, throughput and recovery are not device-tested.',
                    'Upstream ptgen omits alternate GPT by default; primary GPT and exact current geometry verified.',
                    'ELF architecture checks do not prove every compiled instruction works on J1900. Device testing required.']})
