@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+// Audited 1 GiB / 64 GB device. Inherit all physical wiring and calibration.
+#include "ipq6000-re-ss-01.dts"
+
+/ {
+	aliases {
+		ethernet1 = &dp2;
+		ethernet2 = &dp3;
+		ethernet3 = &dp4;
+		ethernet4 = &dp5;
+	};
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x40000000 0x0 0x40000000>;
+	};
+};

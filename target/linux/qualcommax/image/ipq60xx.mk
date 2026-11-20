@@ -101,6 +101,11 @@ define Device/jdcloud_re-ss-01
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := JDCloud
 	DEVICE_MODEL := AX1800 Pro
+	DEVICE_DTS := ipq6000-re-ss-01-hkc
+	SUPPORTED_DEVICES += jdcloud,ax1800-pro
+	# Only a tar maintenance image: never publish factory/recovery offsets.
+	IMAGES := sysupgrade.bin
+	IMAGE_SIZE := 290816k
 	SOC := ipq6000
 	BLOCKSIZE := 64k
 	KERNEL_SIZE := 6144k
