@@ -141,6 +141,66 @@ echo PASS_GEOMETRY_AND_PROPAGATION
             self.assertEqual(r.returncode,0,r.stdout+r.stderr)
             self.assertNotIn('UNSAFE_COMPLETED',r.stdout)
 
+    def test_upgrade_success_backup_and_hash_failures(self):
+        shell=os.environ.get('HKC_TEST_SHELL') or shutil.which('bash') or shutil.which('sh')
+        modes={'plain':(True,2,True),'keep':(True,2,True),'missing-backup':(False,0,False),
+               'source-hash':(False,0,False),'empty-hash':(False,0,False),
+               'readback-hash':(False,1,False),'corrupt-readback':(False,1,False)}
+        for mode,(success,writes,formatted) in modes.items():
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                p=Path(tmp);archive(p/'valid.tar')
+                (p/'helper.sh').write_text(read('target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/hkc-jdcloud.sh'),newline='\n')
+                script='''set -eu
+. ./helper.sh
+MODE="$1"; TRACE="$PWD/trace"; : >"$TRACE"
+hexdump() { od -An -tx1 | tr -d ' \\n'; }
+hkc_jdcloud_check_image() {
+ hkc_jdcloud_archive "$1" || return 1
+ HKC_KERNEL="$PWD/kernel-block"; HKC_ROOT="$PWD/root-block"
+}
+UPGRADE_BACKUP=''; BACKUP_FILE=sysupgrade.tgz
+case "$MODE" in
+ keep) UPGRADE_BACKUP="$PWD/backup"; echo fixture-config >"$UPGRADE_BACKUP" ;;
+ missing-backup) UPGRADE_BACKUP="$PWD/missing-backup" ;;
+esac
+sha256sum() {
+ [ "$MODE" != source-hash ] || return 7
+ [ "$MODE" != empty-hash ] || return 0
+ if [ "$#" -eq 0 ] && [ "$MODE" = readback-hash ]; then return 8; fi
+ command sha256sum "$@"
+}
+dd() {
+ src=''; dst=''
+ for arg in "$@"; do case "$arg" in if=*) src="${arg#if=}" ;; of=*) dst="${arg#of=}" ;; esac; done
+ case "$dst" in "$PWD/kernel-block"|"$PWD/root-block") ;; *) exit 91 ;; esac
+ command cp "$src" "$dst"
+ echo write >>"$TRACE"
+ [ "$MODE" != corrupt-readback ] || printf corrupted >"$dst"
+}
+losetup() { [ "$1" != -f ] || echo fake-loop; return 0; }
+mkfs.ext4() { test "$4" = fake-loop; echo format >>"$TRACE"; }
+mount() { echo mount >>"$TRACE"; }
+umount() { return 0; }
+sync() { return 0; }
+cp() {
+ command cp "$@"
+ if [ "$1" = "$UPGRADE_BACKUP" ]; then
+  test "$(cat "$2")" = fixture-config
+  echo saved-backup >>"$TRACE"
+ fi
+}
+if hkc_jdcloud_do_upgrade valid.tar; then echo SUCCESS; else echo FAILURE; fi
+cat "$TRACE"
+'''
+                (p/'exercise.sh').write_text(script,newline='\n')
+                r=subprocess.run([shell,'exercise.sh',mode],cwd=tmp,capture_output=True,text=True)
+                self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+                lines=r.stdout.splitlines()
+                self.assertIn('SUCCESS' if success else 'FAILURE',lines)
+                self.assertEqual(lines.count('write'),writes,r.stdout+r.stderr)
+                self.assertEqual('format' in lines,formatted,r.stdout+r.stderr)
+                self.assertEqual('saved-backup' in lines,mode=='keep',r.stdout+r.stderr)
+
 class Images(unittest.TestCase):
     def test_valid_fit_and_ports(self):v.check_fit(fit())
     def test_wrong_board(self):

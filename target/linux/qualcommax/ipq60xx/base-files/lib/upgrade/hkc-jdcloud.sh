@@ -50,9 +50,13 @@ hkc_jdcloud_check_image() {
 }
 
 hkc_jdcloud_do_upgrade() {
-	local image="$1" work loopdev digest actual part target rc=1
+	local image="$1" work loopdev digest actual part target kernel_sha root_sha rc=1
 	# Recheck immediately before the stage2 writer. Never fall back to default flashing.
 	hkc_jdcloud_check_image "$image" || return 1
+	if [ -n "${UPGRADE_BACKUP:-}" ] && [ ! -f "$UPGRADE_BACKUP" ]; then
+		hkc_jdcloud_error 'requested configuration backup is missing'
+		return 1
+	fi
 	work="$(mktemp -d /tmp/hkc-jdcloud.XXXXXX)" || return 1
 	tar xOf "$image" sysupgrade-jdcloud_re-ss-01/kernel >"$work/kernel" &&
 		tar xOf "$image" sysupgrade-jdcloud_re-ss-01/root >"$work/root" || {
@@ -63,14 +67,24 @@ hkc_jdcloud_do_upgrade() {
 		[ "$(wc -c <"$work/root")" -eq "$HKC_ROOT_BYTES" ] || {
 		rm -rf "$work"; return 1;
 	}
+	# Hash both source payloads before any block-device write.
+	kernel_sha="$(sha256sum "$work/kernel")" && root_sha="$(sha256sum "$work/root")" || {
+		hkc_jdcloud_error 'cannot hash source payloads'; rm -rf "$work"; return 1;
+	}
+	kernel_sha="${kernel_sha%% *}"; root_sha="${root_sha%% *}"
+	[ "${#kernel_sha}" -eq 64 ] && [ "${#root_sha}" -eq 64 ] || {
+		hkc_jdcloud_error 'invalid source digest'; rm -rf "$work"; return 1;
+	}
 	losetup --detach-all || { rm -rf "$work"; return 1; }
 	for part in kernel root; do
-		case "$part" in kernel) target="$HKC_KERNEL" ;; root) target="$HKC_ROOT" ;; esac
+		case "$part" in kernel) target="$HKC_KERNEL"; digest="$kernel_sha" ;; root) target="$HKC_ROOT"; digest="$root_sha" ;; esac
 		dd if="$work/$part" of="$target" bs=65536 conv=fsync || {
 			hkc_jdcloud_error "write failed: $part"; rm -rf "$work"; return 1;
 		}
-		digest="$(sha256sum "$work/$part")"; digest="${digest%% *}"
-		actual="$(head -c "$(wc -c <"$work/$part")" "$target" | sha256sum)"; actual="${actual%% *}"
+		actual="$(head -c "$(wc -c <"$work/$part")" "$target" | sha256sum)" || {
+			hkc_jdcloud_error "cannot hash readback: $part"; rm -rf "$work"; return 1;
+		}
+		actual="${actual%% *}"
 		[ "$digest" = "$actual" ] || {
 			hkc_jdcloud_error "readback failed: $part"; rm -rf "$work"; return 1;
 		}
@@ -79,7 +93,7 @@ hkc_jdcloud_do_upgrade() {
 	losetup -o "$HKC_ROOT_BYTES" "$loopdev" "$HKC_ROOT" || { rm -rf "$work"; return 1; }
 	if mkfs.ext4 -F -L rootfs_data "$loopdev" && mkdir "$work/overlay" && mount -t ext4 "$loopdev" "$work/overlay"; then
 		rc=0
-		if [ -n "$UPGRADE_BACKUP" ] && [ -f "$UPGRADE_BACKUP" ]; then
+		if [ -n "${UPGRADE_BACKUP:-}" ]; then
 			cp "$UPGRADE_BACKUP" "$work/overlay/$BACKUP_FILE" || rc=1
 		fi
 		umount "$work/overlay" || rc=1
