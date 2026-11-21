@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build JDCloud migration candidate
+    name: Build JDCloud diagnostic candidate
     runs-on: ubuntu-22.04
     timeout-minutes: 480
     env:
@@ -36,6 +36,7 @@ jobs:
         run: |
           command -v flock
           python3 scripts/test-hkc-jdcloud.py
+          python3 scripts/test-hkc-jdcloud-diagnostic.py
 
       - name: Free runner disk space
         run: |
@@ -265,6 +266,9 @@ jobs:
           require_config 'CONFIG_PACKAGE_wpad-openssl=y'
           require_config 'CONFIG_TARGET_PREINIT_IP="192.168.2.1"'
           require_config 'CONFIG_PACKAGE_kmod-ath11k-ahb=y'
+          require_config 'CONFIG_ATH11K_NSS_SUPPORT=y'
+          require_config 'CONFIG_PACKAGE_kmod-qca-nss-dp=y'
+          require_config 'CONFIG_PACKAGE_kmod-qca-nss-drv=y'
           require_config 'CONFIG_PACKAGE_ipq-wifi-jdcloud_re-ss-01=y'
           require_config 'CONFIG_PACKAGE_kmod-fs-ext4=y'
           reject_config 'CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Http_Proxy=y'
@@ -275,6 +279,16 @@ jobs:
           reject_config 'CONFIG_PACKAGE_kmod-tcp-bbr=y'
 
           ./scripts/diffconfig.sh | tee hkc-jdcloud-ax1800-pro.diffconfig
+
+      - name: Stage board-specific diagnostic changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare-hkc-jdcloud-diagnostic.py
+          for file in files/etc/uci-defaults/zz-hkc-minimal-defaults files/etc/board.d/04_hkc_jdcloud_wifi files/etc/hotplug.d/ieee80211/10-wifi-detect files/usr/libexec/hkc-jdcloud-boot files/etc/init.d/hkc-jdcloud-diagnostic; do
+            sh -n "$file"
+          done
+          grep -Fxq 'ath11k nss_offload=0 frame_mode=2' files/etc/modules.d/ath11k
 
       - name: Download source packages
         shell: bash
@@ -426,7 +440,7 @@ jobs:
       - name: Upload HKC JDCloud AX1800 Pro candidate
         uses: actions/upload-artifact@v4
         with:
-          name: HKC-JDCLOUD-AX1800-PRO-${{ github.run_number }}-${{ github.sha }}
+          name: HKC-JDCLOUD-AX1800-PRO-DIAGNOSTIC-${{ github.run_number }}-${{ github.sha }}
           path: artifact/
           if-no-files-found: error
           retention-days: 14

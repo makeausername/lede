@@ -20,7 +20,7 @@ def blob(nodes):
 def dtb(board=v.BOARD,ram=0x40000000,wan_phy=4):
     cell=lambda *n:struct.pack('>'+('I'*len(n)),*n)
     aliases={f'ethernet{i}'.encode().decode():f'/soc@0/dp{i+1}\0'.encode() for i in range(1,5)}
-    soc=[]
+    soc=[('mdio@90000',{'reset-delay-us':cell(100000),'reset-post-delay-us':cell(100000)},[])]
     for i,label in enumerate(['lan1','lan2','lan3','wan'],1):
         soc.append((f'dp{i+1}',{'label':label.encode()+b'\0','status':b'okay\0','phy-handle':cell(i)},[]))
         soc.append((f'phy@{i}',{'reg':cell(wan_phy if i==4 else i),'phandle':cell(i)},[]))

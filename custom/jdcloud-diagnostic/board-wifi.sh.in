@@ -1,0 +1,11 @@
+#!/bin/sh
+# Seed encrypted defaults before the standard mac80211 hotplug detector runs.
+. /lib/functions/system.sh
+[ "$(board_name)" = 'jdcloud,re-ss-01' ] || exit 0
+. /lib/functions/uci-defaults.sh
+board_config_update
+ucidef_set_wireless 2g HKC sae-mixed '__WIFI_PASSWORD__'
+ucidef_set_wireless 5g HKC-5G sae-mixed '__WIFI_PASSWORD__'
+board_config_flush
+# board.json now contains the same private key as wireless UCI; keep root-only.
+chmod 0600 /etc/board.json

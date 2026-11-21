@@ -65,6 +65,9 @@ def check_dtb(data):
         ph=props['phy-handle']
         phy=[v for v in nodes.values() if v.get('phandle')==ph]
         need(len(phy)==1 and number(phy[0]['reg'])==i, 'PHY mapping differs: '+label)
+    mdio=nodes.get('/soc@0/mdio@90000',{})
+    need(mdio.get('reset-delay-us')==struct.pack('>I',100000) and
+         mdio.get('reset-post-delay-us')==struct.pack('>I',100000), 'PHY reset hold/settle not 100ms')
     wifi=[v for v in nodes.values() if v.get('qcom,ath11k-calibration-variant')==b'JDC-RE-SS-01\0']
     need(len(wifi)==1 and wifi[0].get('status')==b'okay\0', 'WiFi calibration variant missing')
     nss=[v for p,v in nodes.items() if p.startswith('/reserved-memory/') and v.get('reg')==struct.pack('>4I',0,0x40000000,0,0x1000000)]
@@ -112,6 +115,9 @@ def check_root(data, tool):
             need(hashlib.sha256(cat(name)).hexdigest()==digest,'accepted runtime differs: '+name);count+=1
         need(count==12,'runtime contract changed')
         for name,source in {
+            'etc/hotplug.d/ieee80211/10-wifi-detect':'custom/jdcloud-diagnostic/wifi-hotplug.sh',
+            'usr/libexec/hkc-jdcloud-boot':'custom/jdcloud-diagnostic/boot-worker.sh',
+            'etc/init.d/hkc-jdcloud-diagnostic':'custom/jdcloud-diagnostic/init.sh',
             'lib/upgrade/hkc-jdcloud.sh':'target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/hkc-jdcloud.sh',
             'lib/upgrade/platform.sh':'target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/platform.sh',
             'etc/board.d/02_network':'target/linux/qualcommax/ipq60xx/base-files/etc/board.d/02_network',
@@ -121,6 +127,25 @@ def check_root(data, tool):
             'etc/hotplug.d/firmware/11-ath11k-caldata':'target/linux/qualcommax/ipq60xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata',
         }.items():
             need(cat(name)==(ROOT/source).read_bytes().replace(b'\r\n',b'\n'),'image helper differs: '+name)
+        need(cat('etc/modules.d/ath11k')==b'ath11k nss_offload=0 frame_mode=2\n','WiFi NSS diagnostic mode lost')
+        listing=subprocess.check_output([str(tool),'-ll',str(path),'etc/rc.d/S19hkc-jdcloud-diagnostic'],text=True)
+        need('S19hkc-jdcloud-diagnostic -> ../init.d/hkc-jdcloud-diagnostic' in listing,'diagnostic service not enabled')
+        listing=subprocess.check_output([str(tool),'-ll',str(path),'lib/modules'],text=True)
+        ssdk=re.findall(r'(lib/modules/[^\s]+/qca-ssdk\.ko)',listing)
+        need(len(ssdk)==1,'SSDK module missing or ambiguous')
+        need(b'ssdk: phy_addr %d phydev is NULL' in cat(ssdk[0]),'PHY diagnostic patch not compiled')
+        for module in ['qca-nss-dp.ko','qca-nss-drv.ko','ath11k.ko','ath11k_ahb.ko']:
+            need(module in listing,'required network module missing: '+module)
+        for name,mode in [('etc/uci-defaults/zz-hkc-minimal-defaults','-rw-------'),('etc/board.d/04_hkc_jdcloud_wifi','-rw-------'),('usr/libexec/hkc-jdcloud-boot','-rwxr-xr-x'),('etc/init.d/hkc-jdcloud-diagnostic','-rwxr-xr-x')]:
+            detail=subprocess.check_output([str(tool),'-ll',str(path),name],text=True)
+            need(any(line.startswith(mode) and line.endswith('/'+name) for line in detail.splitlines()),'diagnostic file mode incorrect: '+name)
+        # Compare injected templates without printing or recording the private key.
+        defaults=cat('etc/uci-defaults/zz-hkc-minimal-defaults')
+        key=re.search(rb"^WIFI_PASSWORD='([A-Za-z0-9]{8,63})'$",defaults,re.M)
+        need(key is not None,'diagnostic WiFi secret not injected')
+        for name,src in [('etc/uci-defaults/zz-hkc-minimal-defaults','defaults.sh.in'),('etc/board.d/04_hkc_jdcloud_wifi','board-wifi.sh.in')]:
+            expected=(ROOT/'custom/jdcloud-diagnostic'/src).read_bytes().replace(b'\r\n',b'\n').replace(b'__WIFI_PASSWORD__',key[1])
+            need(cat(name)==expected,'diagnostic template differs: '+name)
         config=cat('etc/preinit')+cat('lib/preinit/00_preinit.conf')
         need(b'192.168.2.1' in config,'default management address missing')
         for name in ['usr/bin/xray','usr/libexec/mihomo','usr/bin/naive','usr/bin/shadow-tls','usr/bin/sslocal']:
@@ -137,7 +162,7 @@ def main():
         m=Path(tmp)/'metadata';subprocess.run([str(args.fwtool),'-i',str(m),str(args.image)],check=True,capture_output=True)
         meta=json.loads(m.read_text());check_metadata(meta)
     data=payload(args.image);hardware=check_fit(data['kernel']);count=check_root(data['root'],args.unsquashfs)
-    report={'source_commit':args.commit,'image':args.image.name,'sha256':hashlib.sha256(args.image.read_bytes()).hexdigest(),'metadata':meta,'payload_bytes':{k:len(data[k]) for k in ['kernel','root']},'hardware':hardware,'verified_runtime_files':count,'offline_verification_passed':True,'device_upgrade_tested':False,'boot_tested':False,'production_ready':False,'limitations':['Current QWRT migration must not preserve old full configuration.','Router sysupgrade -T, real boot, wireless/NSS/proxy behavior and recovery remain untested.','No bootloader, GPT or data partition should be changed.']}
+    report={'source_commit':args.commit,'image':args.image.name,'sha256':hashlib.sha256(args.image.read_bytes()).hexdigest(),'metadata':meta,'payload_bytes':{k:len(data[k]) for k in ['kernel','root']},'hardware':hardware,'verified_runtime_files':count,'diagnostic':{'phy_reset_us':[100000,100000],'wifi_nss_offload':False,'wired_nss_retained':True,'wifi_retry_seconds':120},'offline_verification_passed':True,'device_upgrade_tested':False,'boot_tested':False,'production_ready':False,'limitations':['Current QWRT migration must not preserve old full configuration.','Router sysupgrade -T, real boot, wireless/NSS/proxy behavior and recovery remain untested.','No bootloader, GPT or data partition should be changed.']}
     with args.report.open('x',encoding='utf-8') as f:json.dump(report,f,indent=2);f.write('\n')
     print(json.dumps(report,indent=2))
 

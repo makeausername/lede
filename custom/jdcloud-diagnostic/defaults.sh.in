@@ -1,0 +1,117 @@
+#!/bin/sh
+set -eu
+umask 077
+[ "$(cat /tmp/sysinfo/board_name)" = 'jdcloud,re-ss-01' ] || exit 1
+WIFI_PASSWORD='__WIFI_PASSWORD__'
+
+if [ -z "$WIFI_PASSWORD" ]; then
+	echo "HKC firmware: Wi-Fi password was not injected" >&2
+	exit 1
+fi
+
+
+hkc_wifi_defaults() (
+	# Never expose partial UCI edits or overwrite pending user changes.
+	[ -z "$(uci -q changes wireless)" ] || return 2
+	[ -s /etc/config/wireless ] || return 1
+	original="$(sha256sum /etc/config/wireless)"
+	stage="$(mktemp -d /tmp/hkc-jdcloud-wifi.XXXXXX)"
+	trap 'rm -rf "$stage"; rm -f /etc/config/.hkc-jdcloud-wireless' EXIT
+	mkdir "$stage/delta"
+	cp /etc/config/wireless "$stage/wireless"
+	uci() { command uci -c "$stage" -t "$stage/delta" "$@"; }
+	count=0; bands=''
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+		band="$(uci -q get "wireless.${radio}.band" || true)"
+		case "$band" in 2g|5g) ;; *) return 1 ;; esac
+		[ "$(uci -q get "wireless.${radio}.disabled" || true)" != 1 ] || return 2
+		count=$((count + 1)); bands="$bands $band"
+	done
+	[ "$count" -eq 2 ] || return 1
+	case "$bands" in ' 2g 5g'|' 5g 2g') ;; *) return 1 ;; esac
+	# Only the generated encrypted defaults may be initialized; leave any
+	# user-created SSID, password, mode, encryption or disabled flag intact.
+	for iface in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+		ssid="$(uci -q get "wireless.${iface}.ssid" || true)"
+		case "$ssid" in HKC|HKC-5G) ;; *) return 2 ;; esac
+		[ "$(uci -q get "wireless.${iface}.key" || true)" = "$WIFI_PASSWORD" ] || return 2
+		[ "$(uci -q get "wireless.${iface}.encryption" || true)" = 'sae-mixed' ] || return 2
+		[ "$(uci -q get "wireless.${iface}.mode" || true)" = 'ap' ] || return 2
+		[ "$(uci -q get "wireless.${iface}.disabled" || true)" != '1' ] || return 2
+	done
+	radio_count=0
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+		band="$(uci -q get "wireless.${radio}.band" || true)"
+
+		case "$band" in
+			2g) ssid='HKC' ;;
+			5g) ssid='HKC-5G' ;;
+			*)
+				echo "HKC firmware: unsupported radio band on ${radio}" >&2
+				exit 1
+				;;
+		esac
+		radio_count=$((radio_count + 1))
+
+		uci -q set "wireless.${radio}.disabled=0"
+		iface="$(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)\.device='${radio}'$/\1/p" | head -n 1)"
+		if [ -z "$iface" ]; then
+			iface="default_${radio}"
+			uci -q set "wireless.${iface}=wifi-iface"
+			uci -q set "wireless.${iface}.device=${radio}"
+			uci -q set "wireless.${iface}.network=lan"
+			uci -q set "wireless.${iface}.mode=ap"
+		fi
+		uci -q set "wireless.${iface}.ssid=${ssid}"
+		uci -q set "wireless.${iface}.encryption=sae-mixed"
+		uci -q set "wireless.${iface}.key=${WIFI_PASSWORD}"
+		uci -q set "wireless.${iface}.ieee80211w=1"
+	done
+
+	if [ "$radio_count" -ne 2 ]; then
+		echo "HKC firmware: expected two wireless radios, found ${radio_count}" >&2
+		exit 1
+	fi
+	uci -q commit wireless
+
+
+	# Abort if hotplug or the user changed the real configuration meanwhile.
+	[ "$(sha256sum /etc/config/wireless)" = "$original" ] || return 2
+	[ -z "$(command uci -q changes wireless)" ] || return 2
+	cp "$stage/wireless" /etc/config/.hkc-jdcloud-wireless
+	chmod 0600 /etc/config/.hkc-jdcloud-wireless
+	mv /etc/config/.hkc-jdcloud-wireless /etc/config/wireless
+)
+
+if [ "${1-}" = '--wireless' ]; then
+	hkc_wifi_defaults
+	exit $?
+fi
+
+# The device hostname is part of the HKC brand identity.
+uci -q set system.@system[0].hostname='HKC'
+uci -q commit system
+
+# Keep all SSR Plus settings and service behavior upstream. Only append the
+# requested domains to the plugin's original blacklist.
+forced_domains='/usr/share/hkc/forced-proxy-domains.list'
+blacklist='/etc/ssrplus/black.list'
+mkdir -p /etc/ssrplus
+touch "$blacklist"
+if [ ! -r "$forced_domains" ]; then
+	echo "HKC firmware: forced proxy domain list is missing" >&2
+	exit 1
+fi
+
+while IFS= read -r domain || [ -n "$domain" ]; do
+	case "$domain" in
+		''|'#'*) continue ;;
+	esac
+	grep -Fqx "$domain" "$blacklist" || printf '%s\n' "$domain" >>"$blacklist"
+done <"$forced_domains"
+
+
+# The bounded background service owns only first-boot wireless initialization.
+# It may retry on the next boot after a timeout. Other defaults have completed.
+touch /etc/hkc-jdcloud-wifi-pending
+exit 0
