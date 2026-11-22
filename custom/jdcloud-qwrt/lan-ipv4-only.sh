@@ -1,7 +1,9 @@
 #!/bin/sh
 # Research defaults for the recovered QWRT legacy bridge schema only.
 # Not installed until the complete userspace-port gates have passed.
-set -eu
+set -e
+# Vendor shell libraries intentionally read optional unset variables.
+set +u
 . /lib/functions.sh
 . /lib/functions/system.sh
 [ "$(board_name)" = 'jdcloud,ax1800-pro' ]

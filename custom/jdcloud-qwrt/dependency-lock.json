@@ -148,6 +148,20 @@
         "usr/bin/xzcat": "xz"
       },
       "policy": "staged only; not approved for installation"
+    },
+    "coreutils-timeout": {
+      "version": "8.30-2",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/coreutils-timeout_8.30-2_aarch64_cortex-a53.ipk",
+      "sha256": "eb24b4437eca157b4509386e1d4da3cd9caa9d129851aa6b39e3159b299ef1dd",
+      "depends": "libc, coreutils, librt",
+      "files": {
+        "usr/bin/gnu-timeout": {
+          "sha256": "5d597a86cda0dc42282645fcd648e36a3cda10184198b2e394b82231bb2e72db",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {},
+      "policy": "offline integration candidate; not installed on device"
     }
   },
   "donor_candidates": {

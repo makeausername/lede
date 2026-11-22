@@ -17,6 +17,8 @@ with (out/'runtime.log').open('wb') as log:
 text=(out/'runtime.log').read_text(encoding='utf-8',errors='replace');errors=[]
 for needle in ['HKC_OFFLINE_RUNTIME_BEGIN','HKC_OFFLINE_RUNTIME_END','YAML_ROUNDTRIP\ttrue','REALITY_CORE_TEST 0','SSR_CONFIG_LISTENER tcp PASS','SSR_CONFIG_LISTENER udp PASS','SSR_CONFIG_LISTENER tcp,udp PASS']:
  if needle not in text:errors.append('Missing '+needle)
+for check in ['DEFAULTS','IDEMPOTENT','CUSTOM_PRESERVED','EMPTY_DEFAULTS','REJECT_board','REJECT_ports','REJECT_dns','REJECT_conflict','REJECT_uncommitted','ROLLBACK','TIMEOUT','PROCD','CLOCK_FIXTURES','DAEMON_NO_NODE','ALL']:
+ if 'INTEGRATION_'+check+' PASS' not in text:errors.append('integration '+check)
 for lang in ['en','zh_cn']:
  for check in ['CBI_RENDER','LOGIN_RENDER']:
   if check+'\t'+lang+'\ttrue' not in text:errors.append(check+' '+lang)
@@ -30,5 +32,5 @@ for line in text.splitlines():
   kind,lang,payload=line.split(' ',2)
   if lang not in ['en','zh_cn']:raise ValueError('Unexpected language')
   data=base64.b64decode(payload,validate=True);(out/(('servers-' if kind=='HTML64' else 'login-')+lang+'.html')).write_bytes(data)
-report={'passed':not errors,'errors':errors,'returncode':code,'seconds':round(time.monotonic()-start,3),'inputs':{k:hashlib.sha256(v.read_bytes()).hexdigest() for k,v in [('qemu',a.qemu),('kernel',a.kernel),('ramfs',a.ramfs)]},'network':'none','device_disks':'none','userspace':'selected original QWRT files plus candidate apps, synthetic settings','kernel':'Alpine virt test kernel; NOT original QWRT kernel','device_boot_tested':False,'proxy_traffic_tested':False,'authentication_tested':False,'cbi_scope':'original renderer with synthetic HTTP context, menu tree and board ubus reply; no login authorization exercised'}
+report={'passed':not errors,'errors':errors,'returncode':code,'seconds':round(time.monotonic()-start,3),'inputs':{k:hashlib.sha256(v.read_bytes()).hexdigest() for k,v in [('qemu',a.qemu),('kernel',a.kernel),('ramfs',a.ramfs)]},'network':'none','device_disks':'none','userspace':'selected original QWRT files plus candidate apps, synthetic settings','kernel':'Alpine virt test kernel; NOT original QWRT kernel','device_boot_tested':False,'proxy_traffic_tested':False,'authentication_tested':False,'integration_uses_synthetic_config':True,'clock_transport':'synthetic HTTPS headers, no external server or TLS test','procd_transport':'original QWRT API with captured JSON, no ubus daemon','cbi_scope':'original renderer with synthetic HTTP context, menu tree and board ubus reply; no login authorization exercised'}
 (out/'RUNTIME-VERIFICATION.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2));raise SystemExit(bool(errors))

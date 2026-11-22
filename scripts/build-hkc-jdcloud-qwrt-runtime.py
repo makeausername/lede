@@ -23,9 +23,9 @@ def put(p,data,mode=0o100644,origin='fixture'):
  for parent in Path(p).parents:
   n=parent.as_posix()
   if n!='.' and n not in entries:entries[n]=(b'',0o40755)
-clients={'usr/bin/lua','usr/bin/ssr-local','usr/bin/ssr-redir','usr/bin/xray','usr/bin/sslocal','usr/bin/jq','usr/bin/curl','usr/bin/resolveip','usr/bin/nping','usr/bin/microsocks','usr/bin/obfs-local','usr/bin/dns2tcp','usr/bin/tcping','usr/bin/ipt2socks','usr/bin/unzip','usr/libexec/base64-coreutils','sbin/uci'}
+clients={'usr/bin/lua','usr/bin/ssr-local','usr/bin/ssr-redir','usr/bin/xray','usr/bin/sslocal','usr/bin/jq','usr/bin/curl','usr/bin/resolveip','usr/bin/nping','usr/bin/microsocks','usr/bin/obfs-local','usr/bin/dns2tcp','usr/bin/tcping','usr/bin/ipt2socks','usr/bin/unzip','usr/libexec/base64-coreutils','sbin/uci','usr/bin/jshn','usr/bin/jsonfilter','usr/bin/sort','usr/libexec/sort-coreutils'}
 def allowed(p):
- return p=='bin/busybox' or p in clients or (p.startswith(('lib/','usr/lib/')) and '.so' in Path(p).name and not p.startswith(('lib/modules/','lib/firmware/'))) or p.startswith(('usr/lib/lua/','usr/share/lua/','usr/lib/lua/luci/view/'))
+ return p in {'lib/functions.sh','lib/functions/system.sh','lib/functions/procd.sh','lib/config/uci.sh','usr/share/libubox/jshn.sh'} or p=='bin/busybox' or p in clients or (p.startswith(('lib/','usr/lib/')) and '.so' in Path(p).name and not p.startswith(('lib/modules/','lib/firmware/'))) or p.startswith(('usr/lib/lua/','usr/share/lua/','usr/lib/lua/luci/view/'))
 for line in (audit/'working-qwrt-inode-list.txt').read_text().splitlines():
  x=shlex.split(line);kind,p=x[:2]
  if kind=='file' and allowed(p):
@@ -44,7 +44,7 @@ for p,mode in modes.items():
  put(p,payload,stat.S_IFREG|int(mode,8),'HKC-review')
 lock=json.loads((repo/'custom/jdcloud-qwrt/dependency-lock.json').read_text())
 meta=json.loads((pool/'VERIFIED-PACKAGES.json').read_text())
-for pkg in ['nping','xz','xz-utils','liblzma']:
+for pkg in ['nping','xz','xz-utils','liblzma','coreutils-timeout']:
  pinned=lock['official_candidates'][pkg]
  if meta[pkg]['files']!=pinned['files'] or meta[pkg]['symlinks']!=pinned['symlinks']:raise ValueError('Dependency lock drift: '+pkg)
  for p,v in meta[pkg]['files'].items():
@@ -55,6 +55,13 @@ donor=audit/'hkc-diagnostic-complete'
 for pkg,v in lock['donor_candidates'].items():
  for p,h in v['files'].items():
   data=(donor/p).read_bytes();assert hashlib.sha256(data).hexdigest()==h;put(p,data,0o100755 if data[:4]==b'\x7fELF' else 0o100644,'candidate-'+pkg)
+spec=importlib.util.spec_from_file_location('integration',repo/'scripts/hkc-jdcloud-qwrt-integration.py');integration=importlib.util.module_from_spec(spec);spec.loader.exec_module(integration)
+for p,(data,mode) in integration.payloads(repo).items():
+ if p in entries and p!='etc/uci-defaults/luci-ssr-plus':raise ValueError('Unexpected integration collision: '+p)
+ put(p,data,stat.S_IFREG|mode,'integration-candidate')
+for p,target in integration.LINKS.items():
+ if p in entries:raise ValueError('Unexpected integration link collision: '+p)
+ put(p,target.encode(),stat.S_IFLNK|0o777,'integration-candidate')
 for p in ['proc','sys','dev','tmp','var','var/run','var/lock','etc/config','etc/uci-defaults','run']:
  if p not in entries:put(p,b'',0o40755)
 put('etc/passwd',b'root:x:0:0:Offline test:/root:/bin/ash\n');put('etc/group',b'root:x:0:\n');put('etc/TZ',b'UTC\n')
@@ -97,6 +104,8 @@ poweroff -f
 put('test-clients.sh',(fixtures/'test-clients.sh').read_bytes().removeprefix(b'\xef\xbb\xbf').replace(b'\r\n',b'\n'),0o100755)
 put('test-cbi.lua',(fixtures/'test-cbi.lua').read_bytes().removeprefix(b'\xef\xbb\xbf'))
 init=init.replace('echo HKC_OFFLINE_RUNTIME_END','/bin/ash /test-clients.sh\nlua /test-cbi.lua en\nlua /test-cbi.lua zh_cn\necho HKC_OFFLINE_RUNTIME_END')
+put('test-integration.sh',(fixtures/'test-integration.sh').read_bytes(),0o100755)
+init=init.replace('echo HKC_OFFLINE_RUNTIME_END','/bin/ash /test-integration.sh\necho HKC_OFFLINE_RUNTIME_END')
 put('init',init.encode(),0o100755)
 # newc archive, entirely in guest RAM; no original configuration or disks.
 data=bytearray()
