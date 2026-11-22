@@ -1,0 +1,62 @@
+name: JDCloud QWRT userspace qualification
+on:
+  push:
+    branches: [codex/jdcloud-ax1800-pro]
+    paths:
+      - custom/jdcloud-qwrt/**
+      - scripts/*jdcloud-qwrt*
+      - .github/workflows/hkc-jdcloud-qwrt-userspace.yml
+permissions:
+  contents: read
+concurrency:
+  group: jdcloud-qwrt-userspace
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Isolated port guard and legacy network regressions
+        run: python3 -B scripts/test-hkc-jdcloud-qwrt.py -v
+      - name: Install host emulator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qemu-user libncurses5
+      - name: Download pinned application SDK
+        run: |
+          set -eu
+          mkdir qualification
+          python3 - <<'PY'
+          import json, hashlib, urllib.request
+          from pathlib import Path
+          spec=json.loads(Path('custom/jdcloud-qwrt/profile.json').read_text())['sdk']
+          assert spec['scope']=='userspace-only-candidate' and not spec['exact_qwrt_sdk']
+          with urllib.request.urlopen(spec['url'],timeout=120) as response:
+              data=response.read()
+          assert hashlib.sha256(data).hexdigest()==spec['sha256']
+          Path('sdk.tar.xz').write_bytes(data)
+          PY
+          mkdir sdk
+          tar -xJf sdk.tar.xz -C sdk --strip-components=1
+      - name: Compile and emulate application ABI probe only
+        run: |
+          set -eu
+          toolchain="$(find "$PWD/sdk/staging_dir" -maxdepth 1 -type d -name 'toolchain-aarch64_cortex-a53_gcc-7.5.0_musl')"
+          test -n "$toolchain"
+          export STAGING_DIR="$PWD/sdk/staging_dir"
+          cc="$toolchain/bin/aarch64-openwrt-linux-musl-gcc"
+          "$cc" --version > qualification/compiler.txt
+          grep -q '7.5.0' qualification/compiler.txt
+          "$cc" -Os -Wall -Wextra -Werror -march=armv8-a -mtune=cortex-a53 custom/jdcloud-qwrt/sdk-probe.c -pthread -ldl -o qualification/sdk-probe
+          qemu-aarch64 -L "$toolchain" qualification/sdk-probe > qualification/sdk-probe.json
+          "$toolchain/bin/aarch64-openwrt-linux-musl-readelf" -h -d -Ws qualification/sdk-probe > qualification/sdk-probe.elf.txt
+          printf '%s\n' "$GITHUB_SHA" > qualification/source-commit.txt
+          printf '%s\n' 'Application SDK qualification only. Not a firmware or an installable package. No QWRT execution or hardware boot test.' > qualification/NOT-FIRMWARE.txt
+          sha256sum qualification/sdk-probe > qualification/SHA256SUMS
+      - name: Upload application qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: JDCloud-QWRT-SDK-qualification-${{ github.sha }}
+          path: qualification/
+          if-no-files-found: error

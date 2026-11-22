@@ -1,0 +1,549 @@
+{
+  "schema": 1,
+  "branch": "codex/jdcloud-ax1800-pro",
+  "working_board": "jdcloud,ax1800-pro",
+  "working_release": "r47727-b292599003",
+  "base_image_sha256": "032374ee2ef2db1ce47db87b1c7a02122e05bcffe8f8aa1eaae58b80f2dace22",
+  "donor_image_sha256": "af627f10c424407abacf1cdd0844aece1584a1324a81f8305f81ec506688921c",
+  "base_file_manifest_sha256": "13aa08723a0c711706abaa830618092aede5615adcaddbecd4adead4c720861b",
+  "base_inode_manifest_sha256": "8c59655ec9c74f25f638d755ecdc9690a3acdb93d5e06b76abd8eec454143927",
+  "kernel_compiler": "GCC 7.5.0 r47716-58e28de107",
+  "musl": "1.1.24-2",
+  "sdk": {
+    "url": "https://downloads.openwrt.org/releases/19.07.10/targets/mvebu/cortexa53/openwrt-sdk-19.07.10-mvebu-cortexa53_gcc-7.5.0_musl.Linux-x86_64.tar.xz",
+    "sha256": "ef7dcc84c774335f2d4aac82100de4f35d103d38f77702e470576e70a25c2680",
+    "scope": "userspace-only-candidate",
+    "exact_qwrt_sdk": false,
+    "matching_libc_export_names": 1694
+  },
+  "overlay": {
+    "etc/hotplug.d/iface/99-ssrplus-pppoe": {
+      "sha256": "32ab42c01ec1784415000ff9ef67e6f1e2083fca3963520034dd259db416886c",
+      "mode": "0644"
+    },
+    "etc/hotplug.d/ntp/90-hkc-time": {
+      "sha256": "49e2b8f0c7571523b0a49ed197b12126c94d6dad88d84e98e73466033e99a85f",
+      "mode": "0755"
+    },
+    "etc/init.d/hkc-stability": {
+      "sha256": "940ebe83c9fd915cd527656e94913c53e58047c22f932467c71c98b5907a58b1",
+      "mode": "0755"
+    },
+    "etc/init.d/shadowsocksr": {
+      "sha256": "bd375b23e8d0c292dc3c657cc2627f53faeb5b94830381ff46448d126f01b4cd",
+      "mode": "0755"
+    },
+    "etc/ssrplus/ad.conf": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "0644"
+    },
+    "etc/ssrplus/applechina.conf": {
+      "sha256": "2b933e27187ff34e3f45d8693b79f66540c037de391666626e9dccea32438b3a",
+      "mode": "0644"
+    },
+    "etc/ssrplus/black.list": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "0644"
+    },
+    "etc/ssrplus/china_ssr.txt": {
+      "sha256": "b2973b25129cfaae125bbebbfb0948df73c0c0beeca49edde8b4690015453299",
+      "mode": "0644"
+    },
+    "etc/ssrplus/deny.list": {
+      "sha256": "73a21a4b48cdd11d0116744554218093f8d036bfe244aa29eea2dcff54852855",
+      "mode": "0644"
+    },
+    "etc/ssrplus/dnsproxy_dns.list": {
+      "sha256": "dd5b9ab53e1e34daad7ce0e2ab25e1c9d00168aed6dff57d8070883598deca6a",
+      "mode": "0644"
+    },
+    "etc/ssrplus/gfw_base.conf": {
+      "sha256": "2e164cc3ffbd7b4f4f80848ac43d58733ff5d25423edb418ef52d7c8ee447fc3",
+      "mode": "0644"
+    },
+    "etc/ssrplus/gfw_list.conf": {
+      "sha256": "2cd885b3497c520fabe8564878ae4cadf6f0f777225b2a19b8133c90aeb7fdef",
+      "mode": "0644"
+    },
+    "etc/ssrplus/mosdns-config.yaml": {
+      "sha256": "205003a9491a7623ad26eb7e63e66a5e468886bb42941ddac97be3f580dc3a17",
+      "mode": "0644"
+    },
+    "etc/ssrplus/netflixip.list": {
+      "sha256": "05fa62c2a08ff34433c9f58cc966e1ba6941cbb8d503778d8ae57ea75b9b9921",
+      "mode": "0644"
+    },
+    "etc/ssrplus/white.list": {
+      "sha256": "c64b33dad5f7ccd5b69e433df53101d4098257ffa3aed912b445eaa0fd4eddc8",
+      "mode": "0644"
+    },
+    "etc/uci-defaults/luci-i18n-ssr-plus-zh-cn": {
+      "sha256": "c272c8973a1bc727c9ad0607c3675dc9f8be3844eacee3dbc188248f6332c8f0",
+      "mode": "0644"
+    },
+    "etc/uci-defaults/luci-ssr-plus": {
+      "sha256": "de4515423949db1d5ff8e516b74e28214bbf5bad8348274f1f9cc8b091b74c84",
+      "mode": "0755"
+    },
+    "usr/bin/ssr-monitor": {
+      "sha256": "e790313c769fe923be5fdc92af2a4685dd28f168c133e5eb4cf1e9f0c1a59f2d",
+      "mode": "0755"
+    },
+    "usr/bin/ssr-rules": {
+      "sha256": "974badc16f9f380877d9de672e98a823b4200b75fd2705338081dfa293d5cbab",
+      "mode": "0755"
+    },
+    "usr/bin/ssr-switch": {
+      "sha256": "00090cc83145d1af010da2126a2d73f268cd4a4f86ab503de1edc8a3a6a812ce",
+      "mode": "0755"
+    },
+    "usr/lib/lua/luci/controller/shadowsocksr.lua": {
+      "sha256": "a8ed6a9c79a62be5d131f3b2bb799da03a75dd3468505318297461702dd33cf6",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/i18n/hkc-ssr-ui.zh-cn.lmo": {
+      "sha256": "70f4115597cfe7610e3ccc2fae18ad27690e8f888a6910aa36f7ed9c4177737e",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/i18n/ssr-plus.zh-cn.lmo": {
+      "sha256": "5babe654a97baada52300ecb940bb776008e90453b2110d98193f7d2d213f416",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/advanced.lua": {
+      "sha256": "c3f14397d56ef61ff59dc6985a14e1a9172c958422b71858c2af8c4dfb9c3963",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/client-config.lua": {
+      "sha256": "db1b055c6cc0efe96e4b1084991e63481b30f9f6fb1489f00255a686a6fd8d32",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/client.lua": {
+      "sha256": "42a30c3ebf0c90c354cc1c0defba510e282264041c2c0eec7e624ec14f4366eb",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/component.lua": {
+      "sha256": "8ef22073db2ec9bd304ddefcdd61b0b10fa965b6b5737e67e49c1c670f5258ad",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/control.lua": {
+      "sha256": "43ad6978814cc77923a7e50468ff49984bd1349bea4df2e2d405d90163af2f6f",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/log.lua": {
+      "sha256": "375e1788c96f7b44bf6ee73b03e427999af875184bceb6e61c41e6ad1aed1c7e",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/server-config.lua": {
+      "sha256": "9d4b777834d2aff8bbc36c2cffc12534ab45c4dbc50ac3e684bdb5d7eca9c065",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/server.lua": {
+      "sha256": "88e8e7c60ecdffba662c1238e9303a3b604d006f533ccbac9f15f9e048c3e5d5",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/servers.lua": {
+      "sha256": "43f3ac9b23acbfcda4d621b8a58914db5559002d3bb5ca19ba3788630877de15",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/model/cbi/shadowsocksr/status.lua": {
+      "sha256": "2759a8c526f4e400327fffc7e5e2d0a30d0cbe0cc5460e3aafc39cc639be541e",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/advanced_switch_compact.htm": {
+      "sha256": "a19005c4ca4214faade173cd3ba5d630174b655a3b0eff26282e3e477b582e7f",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/backup_restore.htm": {
+      "sha256": "f0e3ff788d3ba3080030fe3b8915dd1d02c233895d2d225e7cfc36d1d3410b55",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/certupload.htm": {
+      "sha256": "75922696beb709f10497ab27218d5b79c7bd709f62a6d3403532a7895c6b0462",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/check.htm": {
+      "sha256": "27c14065c638b6b33ce1370e0b5c95357e5ddb1299b84d71b448e59e8e39c2e0",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/checkport.htm": {
+      "sha256": "d48205e755e8d434a55d5b04e3dcdc6265b33cb7a4c42a42b479f2428297ee39",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/clash_main_panel.htm": {
+      "sha256": "b7b296460d388a8847e1cc26555bd09519e51e33eb3b842b3271c37509e11300",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/clash_panel.htm": {
+      "sha256": "8741fc3080438e808e3dc1bc2a66f51956db1f56f3e61d89eb160eee59510bc2",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/clash_panel_button.htm": {
+      "sha256": "431ca4858c2eb0d9f0c5ddd626a1c29c14ba9a36491fad693cb38eb0991c7170",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/clash_yaml_upload.htm": {
+      "sha256": "4e2c567d719e69bbd9c40e71574e64b10c400fa9bc9c99c5b3113521c3e76eb3",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/client_dns_defaults.htm": {
+      "sha256": "3379b5e5306120b67c1c6c01cf0051bab2b30158591960941f15f41e1c5340f1",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/component.htm": {
+      "sha256": "8c0f7936780369238d622dc0d3c8d78e8b53b2a56362ec73b330b26aaaa64048",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/control_layout.htm": {
+      "sha256": "0a82ec3ba7abe00218465d447385b5db4544cd005c192751c18fa880b4b643cc",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/log.htm": {
+      "sha256": "59f61093454d8cf9d6b13fb9f50dcf431b55fdf863a9519ff3095771859d4f04",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/optimize_cbi_ui.htm": {
+      "sha256": "e88b1186479afc07521cb4c621e2e50a942141ef49f160ab76d626a1e4e168c8",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/ping.htm": {
+      "sha256": "7212dd2d5142f6f4f4613faf191bc09193403dbaf8ba03e763fd5566dea2a7fd",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/refresh.htm": {
+      "sha256": "979c6f4138870507aa1aa8e3c9392a0e07b286e482ff2ad9236bd2691252b49c",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/reset.htm": {
+      "sha256": "8382498738706d6fc6208465cd2c5463e6d1fdfc3cfe64b749fad5681b055aeb",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/server_header.htm": {
+      "sha256": "70ec6ed68022075125486ee6a20d0479adec524c4d3ffeada129d13669d5c9a5",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/server_list.htm": {
+      "sha256": "c46dbaf5cd8cd750f0d4a07f49003bac1b0504579389b33721424f9bdc91e8f8",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/server_table.htm": {
+      "sha256": "19ca54280bb0be0778e16910109a46991cffa353b4ae46cee981c4da0016e0f3",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/servers_subscribe_url_style.htm": {
+      "sha256": "0ef137dfabdf55c0900d1f9a22b91f5469b1f5d7a4cc802a5c552fba70e8b02d",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/socket.htm": {
+      "sha256": "3dfde7d6f7d88c8b57f1c59d0759cd409057ecb5a2abb031065f3ba645940bf0",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/ssrurl.htm": {
+      "sha256": "ac34e8c1dd18e66284479dd912355f90027fd71c56868a691ff605825735c645",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/status.htm": {
+      "sha256": "59098b9d657ad11bc9be29f017b46cc7d04361e472c3b54738166f04d1990e02",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/subscribe.htm": {
+      "sha256": "447555c0ead780a24d5527465f815382657f46a35187a37a59188a83030ca4b7",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/subscribe_actions_footer.htm": {
+      "sha256": "c0300d9eb45e2e7b4b44a99801025f94d76c3bae025218116e2a702e6abac631",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/subscribe_enabled_autosave.htm": {
+      "sha256": "5a7cd4c65cb43a2c4d0bb8e1549437847130261a10ebb9034010c603d091ac3c",
+      "mode": "0644"
+    },
+    "usr/lib/lua/luci/view/shadowsocksr/subscribe_schedule_compact.htm": {
+      "sha256": "8ca08ee110c68ac208f3b1b73d337d3e8617167949eaeb5036fc3829f81a1e8c",
+      "mode": "0644"
+    },
+    "usr/libexec/hkc-ssr-health": {
+      "sha256": "e122a29a917bce3123a92ec5cb92d934904f6cbfbcab10d07ae5e49e4dc06dba",
+      "mode": "0755"
+    },
+    "usr/libexec/hkc-ssr-preflight": {
+      "sha256": "57baa0253d4e365d64d04347158998cb0b1a186d3f6937c8a96335dcfcf43497",
+      "mode": "0755"
+    },
+    "usr/libexec/hkc-time-sync": {
+      "sha256": "728b0a76dc828e1a63e4fc7786b60e841097f323fa7a721c447327729105316f",
+      "mode": "0755"
+    },
+    "usr/share/rpcd/acl.d/luci-app-ssr-plus.json": {
+      "sha256": "bd7ca5ee5c4f8bc6b8d32ff3906691843b0bfa58d08e98019462263e863376b3",
+      "mode": "0644"
+    },
+    "usr/share/shadowsocksr/Country.mmdb": {
+      "sha256": "3f43784c312b62c66876a54913f73ae1a0b084980c7047a711275b16f1489ec3",
+      "mode": "0644"
+    },
+    "usr/share/shadowsocksr/chinaipset.sh": {
+      "sha256": "a44246eb143ea48e4775ef8acecfcdb2b9225fab3dc0df61429cb73206b4a091",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/clash_yaml.lua": {
+      "sha256": "93f0abcf2756383a5232c41dbc918e52adc4c77c4f978b486412122d554fa64b",
+      "mode": "0644"
+    },
+    "usr/share/shadowsocksr/gen_config.lua": {
+      "sha256": "6f2aa0cef8b2ef40183c9d6ff34a142c65f2d217a7389637cf096ebd472d05f3",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/gfw2ipset.sh": {
+      "sha256": "8605a94d3863a307b790baf8976898fc36ad9c254ec30ac1ed2df2068f8c7aef",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/hkc-update-safe.lua": {
+      "sha256": "e406d08a937160059b754c69a97ae00c0e72ae52a84bb544c105573b743314c4",
+      "mode": "0644"
+    },
+    "usr/share/shadowsocksr/shadowsocksr.config": {
+      "sha256": "d346b7bcbd2c8f8de705bc2682a97af3a5eac478a8e942a1d35456cec3e214d4",
+      "mode": "0644"
+    },
+    "usr/share/shadowsocksr/ssrplusupdate.sh": {
+      "sha256": "00fbf30580e5f679048a768671fee51a22d12ca92dccb997165916cfd3c2278f",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/subscribe.lua": {
+      "sha256": "ecb6515e16bbc91a6a19ef69c976313ab1a018b3ee32bda27cffcf9610f4e1cf",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/update.lua": {
+      "sha256": "922578c89750e3f792d061c34b3f766374c8a1fe7570e67bf21f28e9df999993",
+      "mode": "0755"
+    },
+    "usr/share/shadowsocksr/update_components.sh": {
+      "sha256": "05e0523e1724dbe8c5f7f94434963973fdbd8fd7419d3870de9c4f04a95e7376",
+      "mode": "0644"
+    },
+    "usr/share/ucitrack/luci-app-ssr-plus.json": {
+      "sha256": "dd1b787b6c91ce64bb51c937a1fc4ddbbb5ee4da0ef7f8c260505eb568992e5a",
+      "mode": "0644"
+    }
+  },
+  "required_new_packages": [
+    "lyaml",
+    "nping",
+    "xz-utils",
+    "xz",
+    "chinadns-ng",
+    "shadow-tls",
+    "naiveproxy",
+    "v2ray-plugin"
+  ],
+  "not_installable_until": [
+    "userspace SDK execution validation",
+    "old-rootfs dynamic link and Lua API validation",
+    "all proxy clients and helper dependencies satisfied",
+    "QSDK-specific defaults and service integration tests",
+    "image preservation and recoverable device boot tests",
+    "legacy Lua theme render and first-boot wireless defaults verified"
+  ],
+  "legacy_theme": {
+    "commit": "f2eb62b34b6be806297ec69dbda7ffb96e16a566",
+    "archive_sha256": "d29d4bc6455bf3b416e2e1b231cda43bd29fff6f93eac9ab15f3009570901b11",
+    "source_url": "https://codeload.github.com/jerrykuku/luci-theme-argon/tar.gz/f2eb62b34b6be806297ec69dbda7ffb96e16a566",
+    "files": {
+      "www/luci-static/argon/background/README.md": {
+        "source": "htdocs/luci-static/argon/background/README.md",
+        "sha256": "bda8c280f3c3f0493b69f4c826924d5048f1fce715d366aa026c023ff8a9042e",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/css/cascade.css": {
+        "source": "htdocs/luci-static/argon/css/cascade.css",
+        "sha256": "059b35683512df8069f2d482700cdf75e5483136db2af2d97a866881eb55e173",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/css/dark.css": {
+        "source": "htdocs/luci-static/argon/css/dark.css",
+        "sha256": "e9306f3e4602135e9eddce95a006fefc9b695a6210ef47ee4c1ae87d48a7927c",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/favicon.ico": {
+        "source": "htdocs/luci-static/argon/favicon.ico",
+        "sha256": "aa15510748b3f83e3cb7a6678d118ba4cedd30e8b7aa037e58565e4ce3355137",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/TypoGraphica.eot": {
+        "source": "htdocs/luci-static/argon/fonts/TypoGraphica.eot",
+        "sha256": "d79316dd6915896d7fd9b8b5e6a90aa64f7ed92798a039a76e2a039dd767149b",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/TypoGraphica.svg": {
+        "source": "htdocs/luci-static/argon/fonts/TypoGraphica.svg",
+        "sha256": "8017c631ba2f5c17b2131b0e6010d1059fea30f3e55adadb65e25ca8d696f97d",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/TypoGraphica.ttf": {
+        "source": "htdocs/luci-static/argon/fonts/TypoGraphica.ttf",
+        "sha256": "b0ecf578601a912923a2357f4d482853bbf8d6051575ecac9920416dc43aadd8",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/TypoGraphica.woff": {
+        "source": "htdocs/luci-static/argon/fonts/TypoGraphica.woff",
+        "sha256": "2dd88f826404ca0e1b422b8d3a7fbefdf8da1ab90bc70157e47134efbb5f6131",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/argon.eot": {
+        "source": "htdocs/luci-static/argon/fonts/argon.eot",
+        "sha256": "d049cec116f287e19dc93e6c99c88c55d9bb639f67dc83896babc880e37f27ed",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/argon.svg": {
+        "source": "htdocs/luci-static/argon/fonts/argon.svg",
+        "sha256": "4556f934bf2544fa4592ea70dee109844d44fc95b224bbc245e3213144304310",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/argon.ttf": {
+        "source": "htdocs/luci-static/argon/fonts/argon.ttf",
+        "sha256": "e933b79cffebb5f5f36a62a4917c437e71c4663dd1015d8f5f4cc3acef5097cb",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/fonts/argon.woff": {
+        "source": "htdocs/luci-static/argon/fonts/argon.woff",
+        "sha256": "1f2d0d2837b0c22b440c6537a67f98f697d12c3ff490e99d64be26b3324fe1a3",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/android-icon-192x192.png": {
+        "source": "htdocs/luci-static/argon/icon/android-icon-192x192.png",
+        "sha256": "328cc43d53214dfd84fe4c67d28a5bc07a55aadc0c4d62c4435f220c7d05f9e0",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/apple-icon-144x144.png": {
+        "source": "htdocs/luci-static/argon/icon/apple-icon-144x144.png",
+        "sha256": "f09c59876638667748beb65e552e10cc3cad4e41a79672f7bcb82c35c4ab0944",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/apple-icon-60x60.png": {
+        "source": "htdocs/luci-static/argon/icon/apple-icon-60x60.png",
+        "sha256": "5a55d443e09661e93967ae958b5412c66a3039e6becc56e23ec2d1d1bdb55763",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/apple-icon-72x72.png": {
+        "source": "htdocs/luci-static/argon/icon/apple-icon-72x72.png",
+        "sha256": "188d33ab6dc44c49f39a074e4f898a4e646298152c693dcdc3d070f922ff3967",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/arrow.svg": {
+        "source": "htdocs/luci-static/argon/icon/arrow.svg",
+        "sha256": "3ecf3ea991a673d490eadc3e33f035703ef45834a84d9081423c3181bbaa60ea",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/browserconfig.xml": {
+        "source": "htdocs/luci-static/argon/icon/browserconfig.xml",
+        "sha256": "13bc647273455808acd0f6605124ab3a78bbae67b532f8b993dc0f8ce2a03d0d",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/favicon-16x16.png": {
+        "source": "htdocs/luci-static/argon/icon/favicon-16x16.png",
+        "sha256": "7530ff1002d81b606484acb22cc63d718dc41225af4375768c99fa20c9a22cb9",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/favicon-32x32.png": {
+        "source": "htdocs/luci-static/argon/icon/favicon-32x32.png",
+        "sha256": "1825239b54c8fc9c6986fbdc4cd689b8259d147be0a61d4e9b7421ad0a4fae02",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/favicon-96x96.png": {
+        "source": "htdocs/luci-static/argon/icon/favicon-96x96.png",
+        "sha256": "13b06e8b9f6a95353d2d9345de47cce9f9a79ed2542013f514ac007df01fe234",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/manifest.json": {
+        "source": "htdocs/luci-static/argon/icon/manifest.json",
+        "sha256": "7dc7e81908c58275d551cd88ced3b4f7b3304c0493b5751d5a8cee3754831798",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/ms-icon-144x144.png": {
+        "source": "htdocs/luci-static/argon/icon/ms-icon-144x144.png",
+        "sha256": "f09c59876638667748beb65e552e10cc3cad4e41a79672f7bcb82c35c4ab0944",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/icon/spinner.svg": {
+        "source": "htdocs/luci-static/argon/icon/spinner.svg",
+        "sha256": "e5739a5981aff7b79398d02b5ea4101ca81f081f20eec0bddf6c872df865127a",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/argon.svg": {
+        "source": "htdocs/luci-static/argon/img/argon.svg",
+        "sha256": "5897dd7c3005a567623f458a5e46f1cdfb91a529cc4d3622782d0405aed84e85",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/bg1.jpg": {
+        "source": "htdocs/luci-static/argon/img/bg1.jpg",
+        "sha256": "a0d936d8b026bda5578967905c8a1ddc4591d3072826484736acbf8d29f4f128",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/blank.png": {
+        "source": "htdocs/luci-static/argon/img/blank.png",
+        "sha256": "530d6aeb77c6434e6986e79ed8211f78f69ba3e993a750d7f260d8fcf233ce71",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/volume_high.svg": {
+        "source": "htdocs/luci-static/argon/img/volume_high.svg",
+        "sha256": "422c9cf97a3c1d921e0340319ab9f925ce406066a645924279891fe954711d35",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/volume_off.svg": {
+        "source": "htdocs/luci-static/argon/img/volume_off.svg",
+        "sha256": "6c12e2584aa4b53d0b4a19d5089daab11977ac19500aefb7a8b387106a3166df",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/js/jquery.min.js": {
+        "source": "htdocs/luci-static/argon/js/jquery.min.js",
+        "sha256": "f7f6a5894f1d19ddad6fa392b2ece2c5e578cbf7da4ea805b6885eb6985b6e3d",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/js/polyfill.min.js": {
+        "source": "htdocs/luci-static/argon/js/polyfill.min.js",
+        "sha256": "cae897bdde94867960ad284a56b1631296eaceddf5710a2857127ca0aa2777d3",
+        "mode": "0644"
+      },
+      "www/luci-static/resources/menu-argon.js": {
+        "source": "htdocs/luci-static/resources/menu-argon.js",
+        "sha256": "4f7ce9645dc77a494924c3cfe453bd29cbb9a4baba0e4e3a349ac755e994a82c",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/footer.htm": {
+        "source": "luasrc/view/themes/argon/footer.htm",
+        "sha256": "7fd0e7e00d9f9184186f0ac20b71e5a458bbed02e9a07e7b3a5d14b9f03f6b10",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/footer_login.htm": {
+        "source": "luasrc/view/themes/argon/footer_login.htm",
+        "sha256": "857e71148b288af832177d0b3395ff9f729d5046d3f9e7a5ebefe2cb645da661",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/header.htm": {
+        "source": "luasrc/view/themes/argon/header.htm",
+        "sha256": "3ee3bcee615c3c17cb8b1aed1cb245c8215dd76b3f85e92bf81130a5bbc4ce3a",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/header_login.htm": {
+        "source": "luasrc/view/themes/argon/header_login.htm",
+        "sha256": "cc3e5f0899c73411acaa365df2e4251bda86f6b6252f2b18d5450111322820c5",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/out_header_login.htm": {
+        "source": "luasrc/view/themes/argon/out_header_login.htm",
+        "sha256": "921c6c1fd3ae8d84095b9f6091793faeb2879c004b5d8493dc613704a77c6343",
+        "mode": "0644"
+      },
+      "usr/lib/lua/luci/view/themes/argon/sysauth.htm": {
+        "source": "luasrc/view/themes/argon/sysauth.htm",
+        "sha256": "542fbfa78462396206fd10ef0d401e959c3eaa501ca87e87d0420242566e8bb4",
+        "mode": "0644"
+      },
+      "etc/uci-defaults/30_luci-theme-argon": {
+        "source": "root/etc/uci-defaults/30_luci-theme-argon",
+        "sha256": "6f4acab86d7d63e850869bc1c9523dda909472905265478813f6b1cc38c9e42b",
+        "mode": "0755"
+      }
+    }
+  }
+}
