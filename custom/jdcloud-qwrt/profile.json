@@ -345,23 +345,30 @@
     "legacy Lua theme render and first-boot wireless defaults verified"
   ],
   "legacy_theme": {
-    "commit": "f2eb62b34b6be806297ec69dbda7ffb96e16a566",
-    "archive_sha256": "d29d4bc6455bf3b416e2e1b231cda43bd29fff6f93eac9ab15f3009570901b11",
-    "source_url": "https://codeload.github.com/jerrykuku/luci-theme-argon/tar.gz/f2eb62b34b6be806297ec69dbda7ffb96e16a566",
+    "commit": "d6dd165802938d455e4967aefd8a95e47773b5d7",
+    "archive_sha256": "1fd474fcd6314e82dd5b95f6865aad214260fe091de58ed949818b70e3349302",
+    "url": "https://codeload.github.com/jerrykuku/luci-theme-argon/tar.gz/d6dd165802938d455e4967aefd8a95e47773b5d7",
+    "version": "1.8.4",
+    "dispatcher": "legacy-lua-tree",
     "files": {
-      "www/luci-static/argon/background/README.md": {
-        "source": "htdocs/luci-static/argon/background/README.md",
-        "sha256": "bda8c280f3c3f0493b69f4c826924d5048f1fce715d366aa026c023ff8a9042e",
-        "mode": "0644"
-      },
       "www/luci-static/argon/css/cascade.css": {
         "source": "htdocs/luci-static/argon/css/cascade.css",
-        "sha256": "059b35683512df8069f2d482700cdf75e5483136db2af2d97a866881eb55e173",
+        "sha256": "5a6bb786868470e2881aabca0de84ab08a407b92a313a10899ba70bd1f7a11b2",
         "mode": "0644"
       },
       "www/luci-static/argon/css/dark.css": {
         "source": "htdocs/luci-static/argon/css/dark.css",
-        "sha256": "e9306f3e4602135e9eddce95a006fefc9b695a6210ef47ee4c1ae87d48a7927c",
+        "sha256": "80e7db50acdae017a91e9d9ca69a77faaa259bcf6acd9f778bdf81804be19b9c",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/css/fonts.css": {
+        "source": "htdocs/luci-static/argon/css/fonts.css",
+        "sha256": "64f49a1109e04b69c6387d7e6f804ad1f194b942bafc4ef786ddc97df6cb75df",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/css/pure-min.css": {
+        "source": "htdocs/luci-static/argon/css/pure-min.css",
+        "sha256": "85dd3ee9599a49d29925a2cf1cd5e0b58a2d9b5767032ad744b31df27cb42a76",
         "mode": "0644"
       },
       "www/luci-static/argon/favicon.ico": {
@@ -429,11 +436,6 @@
         "sha256": "188d33ab6dc44c49f39a074e4f898a4e646298152c693dcdc3d070f922ff3967",
         "mode": "0644"
       },
-      "www/luci-static/argon/icon/arrow.svg": {
-        "source": "htdocs/luci-static/argon/icon/arrow.svg",
-        "sha256": "3ecf3ea991a673d490eadc3e33f035703ef45834a84d9081423c3181bbaa60ea",
-        "mode": "0644"
-      },
       "www/luci-static/argon/icon/browserconfig.xml": {
         "source": "htdocs/luci-static/argon/icon/browserconfig.xml",
         "sha256": "13bc647273455808acd0f6605124ab3a78bbae67b532f8b993dc0f8ce2a03d0d",
@@ -456,7 +458,7 @@
       },
       "www/luci-static/argon/icon/manifest.json": {
         "source": "htdocs/luci-static/argon/icon/manifest.json",
-        "sha256": "7dc7e81908c58275d551cd88ced3b4f7b3304c0493b5751d5a8cee3754831798",
+        "sha256": "b3c37448cb3fea5c2c0632662f6b52e6d198214a6f8b621d67c2a3e93f4f2ee2",
         "mode": "0644"
       },
       "www/luci-static/argon/icon/ms-icon-144x144.png": {
@@ -464,9 +466,9 @@
         "sha256": "f09c59876638667748beb65e552e10cc3cad4e41a79672f7bcb82c35c4ab0944",
         "mode": "0644"
       },
-      "www/luci-static/argon/icon/spinner.svg": {
-        "source": "htdocs/luci-static/argon/icon/spinner.svg",
-        "sha256": "e5739a5981aff7b79398d02b5ea4101ca81f081f20eec0bddf6c872df865127a",
+      "www/luci-static/argon/img/add.webp": {
+        "source": "htdocs/luci-static/argon/img/add.webp",
+        "sha256": "94dbc8051b9aa288465f7bc85b3292f63a8f0490cbd5a555e3034ba66d69307c",
         "mode": "0644"
       },
       "www/luci-static/argon/img/argon.svg": {
@@ -484,64 +486,124 @@
         "sha256": "530d6aeb77c6434e6986e79ed8211f78f69ba3e993a750d7f260d8fcf233ce71",
         "mode": "0644"
       },
+      "www/luci-static/argon/img/edit.webp": {
+        "source": "htdocs/luci-static/argon/img/edit.webp",
+        "sha256": "b913cf1d652dbff005cddfc832c262aff465c94d1a598562cbcda7a8194a5a88",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/fieldadd.webp": {
+        "source": "htdocs/luci-static/argon/img/fieldadd.webp",
+        "sha256": "5526cabe05274586eba9666b7ebc7ae62d9845d474e21cc75f655cf45a44ed09",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/file.webp": {
+        "source": "htdocs/luci-static/argon/img/file.webp",
+        "sha256": "2311bc574fd9264f4da70dbdbaeada3f622f2790d813123a36e64672a6848a15",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/find.webp": {
+        "source": "htdocs/luci-static/argon/img/find.webp",
+        "sha256": "9ec343f94a17493892b49bd682e862d675d4a3b97e3933b35602b434e5e489d1",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/folder.webp": {
+        "source": "htdocs/luci-static/argon/img/folder.webp",
+        "sha256": "ce7687380b51a66c4f7e7a14ad943adf91b3ee99f67e7629b07d08a849106898",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/link.webp": {
+        "source": "htdocs/luci-static/argon/img/link.webp",
+        "sha256": "2b5e8170725eb5c3cf3477e5e3133e4351e8a9a9553f288707059699f9e23d3a",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/reload.webp": {
+        "source": "htdocs/luci-static/argon/img/reload.webp",
+        "sha256": "e5725b4fa10470e0620f29481ea7d9a4c5005c0627258a91d6731010c4bf1c83",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/remove.webp": {
+        "source": "htdocs/luci-static/argon/img/remove.webp",
+        "sha256": "7a2f7129ed7909b6549d845dbbc27af2e39cd84a4c2b8775ac0889c5a44ee4e0",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/img/trafficbar.png": {
+        "source": "htdocs/luci-static/argon/img/trafficbar.png",
+        "sha256": "3e2475699f9e77fb2151d9c3638c3ffac7314e932a85f3be932dc3894c535ea4",
+        "mode": "0644"
+      },
       "www/luci-static/argon/img/volume_high.svg": {
         "source": "htdocs/luci-static/argon/img/volume_high.svg",
-        "sha256": "422c9cf97a3c1d921e0340319ab9f925ce406066a645924279891fe954711d35",
+        "sha256": "9b5a55103324d3cd46e540d655db1eb3fc1ec5aa7ea757fa3a42b8da57288189",
         "mode": "0644"
       },
       "www/luci-static/argon/img/volume_off.svg": {
         "source": "htdocs/luci-static/argon/img/volume_off.svg",
-        "sha256": "6c12e2584aa4b53d0b4a19d5089daab11977ac19500aefb7a8b387106a3166df",
+        "sha256": "afe9fcd491bf4bd0979283f914644af795052974e4687309c9092193b6222b42",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/js/color_calc-argon.js": {
+        "source": "htdocs/luci-static/argon/js/color_calc-argon.js",
+        "sha256": "71405835c1d7e2bd5580709cf61b33d229813404359ea1f410b725e57ecddda4",
         "mode": "0644"
       },
       "www/luci-static/argon/js/jquery.min.js": {
         "source": "htdocs/luci-static/argon/js/jquery.min.js",
-        "sha256": "f7f6a5894f1d19ddad6fa392b2ece2c5e578cbf7da4ea805b6885eb6985b6e3d",
+        "sha256": "6150a35c0f486c46cadf0e230e2aa159c7c23ecfbb5611b64ee3f25fcbff341f",
         "mode": "0644"
       },
-      "www/luci-static/argon/js/polyfill.min.js": {
-        "source": "htdocs/luci-static/argon/js/polyfill.min.js",
-        "sha256": "cae897bdde94867960ad284a56b1631296eaceddf5710a2857127ca0aa2777d3",
+      "www/luci-static/argon/js/menu-argon.js": {
+        "source": "htdocs/luci-static/argon/js/menu-argon.js",
+        "sha256": "ff6968558d4719f5cd51140c17770180709fda16d6d026c73cd6135810b8b283",
         "mode": "0644"
       },
-      "www/luci-static/resources/menu-argon.js": {
-        "source": "htdocs/luci-static/resources/menu-argon.js",
-        "sha256": "4f7ce9645dc77a494924c3cfe453bd29cbb9a4baba0e4e3a349ac755e994a82c",
+      "www/luci-static/argon/js/sidebar-argon.js": {
+        "source": "htdocs/luci-static/argon/js/sidebar-argon.js",
+        "sha256": "0c43839afc4f418cfc8f1d12bd179616451df92fb63518a29a7f4706c89abdfa",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/js/styles-argon.js": {
+        "source": "htdocs/luci-static/argon/js/styles-argon.js",
+        "sha256": "87e6b61202c2c17611ba36065d488dae7f664ef3e201e6478096b6713841dd86",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/less/cascade.less": {
+        "source": "htdocs/luci-static/argon/less/cascade.less",
+        "sha256": "316d057786dae46f05b6917c43485ade41e85bd57f0cb951b69b279f69c2ce93",
+        "mode": "0644"
+      },
+      "www/luci-static/argon/less/dark.less": {
+        "source": "htdocs/luci-static/argon/less/dark.less",
+        "sha256": "5c12e4d30c051ea3e88ca8f95bdc8433b1c98e9e90e56a8c647ac5beb5965511",
         "mode": "0644"
       },
       "usr/lib/lua/luci/view/themes/argon/footer.htm": {
         "source": "luasrc/view/themes/argon/footer.htm",
-        "sha256": "7fd0e7e00d9f9184186f0ac20b71e5a458bbed02e9a07e7b3a5d14b9f03f6b10",
-        "mode": "0644"
-      },
-      "usr/lib/lua/luci/view/themes/argon/footer_login.htm": {
-        "source": "luasrc/view/themes/argon/footer_login.htm",
-        "sha256": "857e71148b288af832177d0b3395ff9f729d5046d3f9e7a5ebefe2cb645da661",
+        "sha256": "158472b403e8a2d6b74b05f6e424ae88354ea4e62924828166d41beb6deec7b6",
         "mode": "0644"
       },
       "usr/lib/lua/luci/view/themes/argon/header.htm": {
         "source": "luasrc/view/themes/argon/header.htm",
-        "sha256": "3ee3bcee615c3c17cb8b1aed1cb245c8215dd76b3f85e92bf81130a5bbc4ce3a",
+        "sha256": "dcc0bb5c1e652be90e23675120d0c15b3ca05c7a2102840e4bdd3055e1a05499",
         "mode": "0644"
       },
       "usr/lib/lua/luci/view/themes/argon/header_login.htm": {
         "source": "luasrc/view/themes/argon/header_login.htm",
-        "sha256": "cc3e5f0899c73411acaa365df2e4251bda86f6b6252f2b18d5450111322820c5",
+        "sha256": "20593ec19db0c57b2d3f7a1ad65e70aeb544b0a26277f8e1c5bf437bcfe1be97",
         "mode": "0644"
       },
       "usr/lib/lua/luci/view/themes/argon/out_header_login.htm": {
         "source": "luasrc/view/themes/argon/out_header_login.htm",
-        "sha256": "921c6c1fd3ae8d84095b9f6091793faeb2879c004b5d8493dc613704a77c6343",
+        "sha256": "726ba27dad1005c931dfad4a29f1a5208f2c259c20f0e4221eaf4c2b06be32c4",
         "mode": "0644"
       },
       "usr/lib/lua/luci/view/themes/argon/sysauth.htm": {
         "source": "luasrc/view/themes/argon/sysauth.htm",
-        "sha256": "542fbfa78462396206fd10ef0d401e959c3eaa501ca87e87d0420242566e8bb4",
+        "sha256": "9b30d1f4873615396ce8be12318665243614ae8d9d4dfd806c10be06462f5367",
         "mode": "0644"
       },
       "etc/uci-defaults/30_luci-theme-argon": {
-        "source": "root/etc/uci-defaults/30_luci-theme-argon",
-        "sha256": "6f4acab86d7d63e850869bc1c9523dda909472905265478813f6b1cc38c9e42b",
+        "source": "root/etc/uci-defaults/90_luci-theme-argon",
+        "sha256": "4cd3a6b6b8852003e45b108bf68c25337bdeeb8c629548504304fb6fba73dc9a",
         "mode": "0755"
       }
     }

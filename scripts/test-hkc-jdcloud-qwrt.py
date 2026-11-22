@@ -64,6 +64,36 @@ class OverlayTests(unittest.TestCase):
         self.assertEqual(count,12);self.assertFalse(p['sdk']['exact_qwrt_sdk']);self.assertEqual(p['sdk']['scope'],'userspace-only-candidate')
         self.assertFalse(any('.ut'==Path(p).suffix for p in p['legacy_theme']['files']))
 
+class ThemeCompatibilityTests(unittest.TestCase):
+    def test_legacy_theme_avoids_core_rewrites(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            bodies={
+                'header.htm': b'<a class="brand" href="#"><%=boardinfo.hostname or "?"%></a>'*2,
+                'sysauth.htm': b'<%+header_login%><%=striptags( (boardinfo.hostname or "?") ) %>',
+                'init': b'sed -i unsafe /usr/lib/lua/luci/dispatcher.lua',
+            }
+            targets={'header.htm':'usr/lib/lua/luci/view/themes/argon/header.htm',
+                     'sysauth.htm':'usr/lib/lua/luci/view/themes/argon/sysauth.htm',
+                     'init':'etc/uci-defaults/30_luci-theme-argon'}
+            specs={}
+            for name,data in bodies.items():
+                (root/name).write_bytes(data)
+                specs[targets[name]]={'source':name,'sha256':hashlib.sha256(data).hexdigest(),'mode':'0644'}
+            p={'legacy_theme':{'dispatcher':'legacy-lua-tree','files':specs}}
+            result=port.theme_payloads(p,root)
+            self.assertEqual(result[targets['header.htm']].count(b'>HKC</a>'),2)
+            self.assertIn(b'<%+themes/argon/out_header_login%>',result[targets['sysauth.htm']])
+            self.assertNotIn(b'<%+header_login%>',result[targets['sysauth.htm']])
+            init=result[targets['init']]
+            for forbidden in [b'sed ',b'mv ',b'rm ',b'dispatcher.lua',b'/etc/config/network']:
+                self.assertNotIn(forbidden,init)
+            self.assertIn(b'jdcloud,ax1800-pro',init)
+            for token in [b'disp.lookup(', b'/luci.js', b"L.require("]:
+                data=bodies['header.htm']+token;(root/'header.htm').write_bytes(data)
+                specs[targets['header.htm']]['sha256']=hashlib.sha256(data).hexdigest()
+                with self.assertRaises(ValueError):port.theme_payloads(p,root)
+
 class LegacyLanTests(unittest.TestCase):
     def test_legacy_bridge_policy_and_rejections(self):
         shell=os.environ.get('HKC_TEST_SHELL') or shutil.which('bash') or shutil.which('sh');self.assertTrue(shell)

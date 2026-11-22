@@ -69,14 +69,29 @@ def theme_payloads(profile, legacy):
         if hashlib.sha256(payload).hexdigest() != spec['sha256'] or payload.startswith(b'\x7fELF'):
             raise ValueError('Theme source mismatch: ' + target)
         if target.endswith('/header.htm'):
-            old = b'local brand_name = boardinfo.hostname or "?"'
-            if payload.count(old) != 1:
+            if profile['legacy_theme'].get('dispatcher') != 'legacy-lua-tree':
+                raise ValueError('Unsupported QWRT theme dispatcher')
+            for token in (b'disp.lookup(', b'/luci.js', b"L.require("):
+                if token in payload:
+                    raise ValueError('Modern dispatcher dependency in legacy theme')
+            old = b'<a class="brand" href="#"><%=boardinfo.hostname or "?"%></a>'
+            if payload.count(old) != 2:
                 raise ValueError('Theme branding anchor drift')
-            payload = payload.replace(old, b'local brand_name = "HKC"')
+            payload = payload.replace(old, b'<a class="brand" href="#">HKC</a>')
         if target.endswith(('/footer.htm','/footer_login.htm')):
             start = payload.index(b'<a class="luci-link"')
             end = payload.index(b'<%= ver.distversion %>', start) + len(b'<%= ver.distversion %>')
             payload = payload[:start] + b'<span>HKC</span>' + payload[end:]
+        if target.endswith('/sysauth.htm'):
+            old = b'<%+header_login%>'
+            if payload.count(old) != 1:
+                raise ValueError('Login include anchor drift')
+            payload = payload.replace(old, b'<%+themes/argon/out_header_login%>')
+            payload = payload.replace(b'<%=striptags( (boardinfo.hostname or "?") ) %>', b'HKC')
+        if target == 'etc/uci-defaults/30_luci-theme-argon':
+            # Upstream 18.06 postinst rewrites dispatcher.lua and a global template.
+            # QWRT already supports theme sysauth. Register the theme only.
+            payload = b'#!/bin/sh\n[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = \'jdcloud,ax1800-pro\' ] || exit 1\nuci -q get luci.main >/dev/null || exit 1\nuci -q batch <<\'EOF\'\nset luci.themes.Argon=\'/luci-static/argon\'\nset luci.main.mediaurlbase=\'/luci-static/argon\'\ncommit luci\nEOF\n'
         result[target] = payload
     return result
 

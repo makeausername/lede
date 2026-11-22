@@ -13,13 +13,15 @@
       "sha256": "5845340dfd0a0eb115fdb8413120c938410e50359db51bdd48d1d8537be591b1",
       "package_version": "2.5.6-9",
       "static_symbol_closure_pass": true,
-      "hkc_config_runtime_tested": false
+      "hkc_config_runtime_tested": false,
+      "offline_vm_smoke_tested": true
     },
     "usr/bin/ssr-redir": {
       "sha256": "b1655e3fe800fbff8cafc61abe18e8b4e71d296fca6fb55927e46a6d1839d7b9",
       "package_version": "2.5.6-9",
       "static_symbol_closure_pass": true,
-      "hkc_config_runtime_tested": false
+      "hkc_config_runtime_tested": false,
+      "offline_vm_smoke_tested": true
     }
   },
   "rejected_donor_clients": {
@@ -159,7 +161,8 @@
       },
       "runtime_tested": false,
       "static_symbol_closure_pass": true,
-      "installable": false
+      "installable": false,
+      "offline_vm_smoke_tested": true
     },
     "chinadns-ng": {
       "files": {
@@ -167,7 +170,8 @@
       },
       "runtime_tested": false,
       "static_symbol_closure_pass": true,
-      "installable": false
+      "installable": false,
+      "offline_vm_smoke_tested": true
     },
     "shadow-tls": {
       "files": {
@@ -175,7 +179,8 @@
       },
       "runtime_tested": false,
       "static_symbol_closure_pass": true,
-      "installable": false
+      "installable": false,
+      "offline_vm_smoke_tested": true
     },
     "naiveproxy": {
       "files": {
@@ -183,7 +188,8 @@
       },
       "runtime_tested": false,
       "static_symbol_closure_pass": true,
-      "installable": false
+      "installable": false,
+      "offline_vm_smoke_tested": true
     },
     "v2ray-plugin": {
       "files": {
@@ -191,7 +197,8 @@
       },
       "runtime_tested": false,
       "static_symbol_closure_pass": true,
-      "installable": false
+      "installable": false,
+      "offline_vm_smoke_tested": true
     }
   },
   "limitations": [
@@ -200,5 +207,23 @@
     "No system libc, liblua, OpenSSL, kernel modules, firmware, network startup or bootloader replacement",
     "Package signatures are not independently authenticated: downloads are pinned to SHA256 from official HTTPS indexes",
     "Old package versions are compatibility candidates, not a security or production support endorsement"
-  ]
+  ],
+  "offline_vm_qualification": {
+    "arch": "aarch64 Cortex-A53",
+    "base_libraries": "original QWRT",
+    "kernel": "Alpine 6.12.115-0-virt, not QWRT 5.4.250",
+    "network": "none",
+    "disks": "none",
+    "native_modules_loaded": 10,
+    "client_version_or_help_checks": 10,
+    "ssr_generated_config_listeners": 3,
+    "vless_reality_xray_config_test": true,
+    "luci_template_parse_count": 33,
+    "cbi_and_login_render_languages": [
+      "en",
+      "zh-cn"
+    ],
+    "device_boot_tested": false,
+    "real_proxy_traffic_tested": false
+  }
 }
