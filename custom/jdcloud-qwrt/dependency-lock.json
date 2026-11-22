@@ -1,0 +1,204 @@
+{
+  "schema": 1,
+  "installable": false,
+  "scope": "application dependency review only; no system library replacement",
+  "selected_sdk_probe": {
+    "commit": "9135f8fefde7f432bd3a6411e773641066575de2",
+    "run": "https://github.com/makeausername/lede/actions/runs/44964806075",
+    "qemu_sdk_sysroot_passed": true,
+    "qwrt_runtime_tested": false
+  },
+  "retained_qwrt_clients": {
+    "usr/bin/ssr-local": {
+      "sha256": "5845340dfd0a0eb115fdb8413120c938410e50359db51bdd48d1d8537be591b1",
+      "package_version": "2.5.6-9",
+      "static_symbol_closure_pass": true,
+      "hkc_config_runtime_tested": false
+    },
+    "usr/bin/ssr-redir": {
+      "sha256": "b1655e3fe800fbff8cafc61abe18e8b4e71d296fca6fb55927e46a6d1839d7b9",
+      "package_version": "2.5.6-9",
+      "static_symbol_closure_pass": true,
+      "hkc_config_runtime_tested": false
+    }
+  },
+  "rejected_donor_clients": {
+    "paths": [
+      "usr/bin/ssr-local",
+      "usr/bin/ssr-redir"
+    ],
+    "reason": "OpenSSL 3 functions missing from QWRT 1.1 compatibility shim",
+    "missing_symbols": [
+      "EVP_CIPHER_get_iv_length",
+      "EVP_CIPHER_get_key_length"
+    ]
+  },
+  "official_candidates": {
+    "liblua5.1.5": {
+      "version": "5.1.5-3",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/base/liblua5.1.5_5.1.5-3_aarch64_cortex-a53.ipk",
+      "sha256": "907c8870f557c75a199b0b6bdb78c036e47b799adffe6831d75fc112314cf2f8",
+      "depends": "libc",
+      "files": {
+        "usr/lib/liblua.so.5.1.5": {
+          "sha256": "ae11ab4854c0b41e980833abbf442e4c3dbc5366520a4b22bd9f9c8f4ce2521e",
+          "mode": "0o644"
+        }
+      },
+      "symlinks": {},
+      "policy": "reference only; retain existing system library"
+    },
+    "liblzma": {
+      "version": "5.2.5-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/liblzma_5.2.5-1_aarch64_cortex-a53.ipk",
+      "sha256": "ed94676ece243d2a7f0e550aff30b7ba572c1d07b4827bf106daa8b560df9cbd",
+      "depends": "libc, libpthread",
+      "files": {
+        "usr/lib/liblzma.so.5.2.5": {
+          "sha256": "b3a982fcd3fbb0a770be18d1a6c2f989a8e534d1dbfe064714252424f0a8f812",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {
+        "usr/lib/liblzma.so.5": "liblzma.so.5.2.5"
+      },
+      "policy": "staged only; not approved for installation"
+    },
+    "libpcre2": {
+      "version": "10.32-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/libpcre2_10.32-1_aarch64_cortex-a53.ipk",
+      "sha256": "3015063ad3007a78339ce7c47bf553851d412a10891610cf61025b3963493a41",
+      "depends": "libc",
+      "files": {
+        "usr/lib/libpcre2-8.so.0.7.1": {
+          "sha256": "be3cbce714c34b09c743812f595d1aa8ed25aed65eeca3e4d149beefd36bc017",
+          "mode": "0o755"
+        },
+        "usr/lib/libpcre2-posix.so.2.0.1": {
+          "sha256": "11e6746ed953a9fe4b0d2f6c664dd48c23accb676da1bbea0a6e0e4f1f746c70",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {
+        "usr/lib/libpcre2-8.so": "libpcre2-8.so.0.7.1",
+        "usr/lib/libpcre2-8.so.0": "libpcre2-8.so.0.7.1",
+        "usr/lib/libpcre2-posix.so": "libpcre2-posix.so.2.0.1",
+        "usr/lib/libpcre2-posix.so.2": "libpcre2-posix.so.2.0.1"
+      },
+      "policy": "staged only; not approved for installation"
+    },
+    "libyaml": {
+      "version": "0.2.2-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/libyaml_0.2.2-1_aarch64_cortex-a53.ipk",
+      "sha256": "fbe4599ab907299a189c2dc3c0f9043dfa528c18310ac113f9565d034801862c",
+      "depends": "libc",
+      "files": {
+        "usr/lib/libyaml-0.so.2.0.6": {
+          "sha256": "d5ca4453db1310a8f9a7659633a313b177cebecc7f87c32394c7d2b3a853ea91",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {
+        "usr/lib/libyaml-0.so.2": "libyaml-0.so.2.0.6",
+        "usr/lib/libyaml.so": "libyaml-0.so.2.0.6"
+      },
+      "policy": "reference only; retain existing system library"
+    },
+    "nping": {
+      "version": "7.70-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/nping_7.70-1_aarch64_cortex-a53.ipk",
+      "sha256": "1b42fb9eca322b0c5d8aefeb14860171b1b4bc52c5ec29a6b3169c605e170ee0",
+      "depends": "libc, libpcap1, libpthread, libstdcpp6",
+      "files": {
+        "usr/bin/nping": {
+          "sha256": "b6d485407627fe8e97d07a1df06c63839762b5067c4abc3e4f071e5df8045a48",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {},
+      "policy": "staged only; not approved for installation"
+    },
+    "xz-utils": {
+      "version": "5.2.5-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/xz-utils_5.2.5-1_aarch64_cortex-a53.ipk",
+      "sha256": "2f6eb9cbd8c667184694f32168fcfd85ed085e19983b0e604750b345e4b81a03",
+      "depends": "libc",
+      "files": {},
+      "symlinks": {},
+      "policy": "staged only; not approved for installation"
+    },
+    "xz": {
+      "version": "5.2.5-1",
+      "url": "https://downloads.openwrt.org/releases/19.07.10/packages/aarch64_cortex-a53/packages/xz_5.2.5-1_aarch64_cortex-a53.ipk",
+      "sha256": "2918543cc1abdab3529228981b040c6f19074321af1ba6e725f246aff9d64b4f",
+      "depends": "libc, xz-utils, liblzma",
+      "files": {
+        "usr/bin/xz": {
+          "sha256": "fbfa56c7c5f7139d24fb284eb47d6c330a2214eaeb004da627de7cde57f25e69",
+          "mode": "0o755"
+        }
+      },
+      "symlinks": {
+        "usr/bin/lzcat": "xz",
+        "usr/bin/lzma": "xz",
+        "usr/bin/unlzma": "xz",
+        "usr/bin/unxz": "xz",
+        "usr/bin/xzcat": "xz"
+      },
+      "policy": "staged only; not approved for installation"
+    }
+  },
+  "donor_candidates": {
+    "lyaml": {
+      "files": {
+        "usr/lib/lua/lyaml/functional.lua": "ae0d64d2ab0f7bae7d636da8606e69112f443b1631bec1636333c9b25f02d7f6",
+        "usr/lib/lua/lyaml/init.lua": "20ce0b68aef2847f5826598137e45eb4f3f59e66f7c9bcda2c5720b1dc3a3ec3",
+        "usr/lib/lua/yaml.so": "062c44fdbb5440413a878d935bc3cd7a0d8bef6822fea19c253af86d4ff70f8b",
+        "usr/lib/lua/lyaml/implicit.lua": "d66d87b6d3b22ccac345b85e40cf59da6479841750819dac3904eb4bcad40f6c",
+        "usr/lib/lua/lyaml/explicit.lua": "ca62e26e876ee3995850836ab5699e81fcf1bbbe08a5df7b399ca431e399e6d3"
+      },
+      "runtime_tested": false,
+      "static_symbol_closure_pass": true,
+      "installable": false
+    },
+    "chinadns-ng": {
+      "files": {
+        "usr/bin/chinadns-ng": "24115575bbf5b81a2af06b6e0cb953a1de40561d24c24b29dd7399c5180c2cfa"
+      },
+      "runtime_tested": false,
+      "static_symbol_closure_pass": true,
+      "installable": false
+    },
+    "shadow-tls": {
+      "files": {
+        "usr/bin/shadow-tls": "1d237e7d44e9b882d65fa575493655557fdadceb4e3fd5321a0ccce1c097df97"
+      },
+      "runtime_tested": false,
+      "static_symbol_closure_pass": true,
+      "installable": false
+    },
+    "naiveproxy": {
+      "files": {
+        "usr/bin/naive": "4318eb7119c3629edde02053676c199e5d29e0c117452d77bb3441963c0e49ae"
+      },
+      "runtime_tested": false,
+      "static_symbol_closure_pass": true,
+      "installable": false
+    },
+    "v2ray-plugin": {
+      "files": {
+        "usr/bin/v2ray-plugin": "62bb7062152071f52955228359d5cfb3c98acfa3eff799527ba3dbe1c5f142e3"
+      },
+      "runtime_tested": false,
+      "static_symbol_closure_pass": true,
+      "installable": false
+    }
+  },
+  "limitations": [
+    "Dynamic symbol names only; symbol versions, data layout and execution on QWRT remain unverified",
+    "Lua yaml.so symbols resolved with host Lua exports; module loading is not yet tested",
+    "No system libc, liblua, OpenSSL, kernel modules, firmware, network startup or bootloader replacement",
+    "Package signatures are not independently authenticated: downloads are pinned to SHA256 from official HTTPS indexes",
+    "Old package versions are compatibility candidates, not a security or production support endorsement"
+  ]
+}
