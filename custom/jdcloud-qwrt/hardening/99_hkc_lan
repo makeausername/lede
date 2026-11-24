@@ -1,0 +1,8 @@
+#!/bin/sh
+# Only seeds generated board defaults; never rewrites an existing UCI network.
+. /lib/functions/uci-defaults.sh
+. /lib/functions/system.sh
+[ "$(board_name)" = jdcloud,ax1800-pro ] || exit 0
+board_config_update
+ucidef_set_interface lan ipaddr '192.168.2.1' netmask '255.255.255.0'
+board_config_flush
