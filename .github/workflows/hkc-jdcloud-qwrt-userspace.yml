@@ -21,6 +21,7 @@ jobs:
         run: |
           python3 -B scripts/test-hkc-jdcloud-qwrt.py -v
           python3 -B scripts/test-hkc-jdcloud-qwrt-packaging.py -v
+          python3 -B scripts/test-hkc-jdcloud-qwrt-upgrade.py -v
           for script in custom/jdcloud-qwrt/integration/*.sh custom/jdcloud-qwrt/runtime-fixtures/*.sh; do bash -n "$script"; done
           python3 -c 'import ast,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*jdcloud-qwrt*.py")]'
       - name: Install host emulator
