@@ -18,7 +18,7 @@ shared directories. All inputs are hash-pinned. Original QWRT binaries and scrip
 run in guest RAM. A small static ELF uses semihosting SYS_WRITE0 only to report
 results because this kernel has no virtual UART driver. QEMU userspace semihosting
 must be used only with these trusted pinned inputs; it is not a guest security
-boundary. See https://www.qemu.org/docs/master/system/invocation.html#hxtool-8 .
+boundary. See https://www.qemu.org/docs/master/system/invocation.html .
 
 The test mounts the actual candidate SquashFS and verifies every regular file.
 It then runs the original metadata checker (including a wrong-board negative test)

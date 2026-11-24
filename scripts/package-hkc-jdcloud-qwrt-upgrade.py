@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build a PRIVATE, offline-only QWRT sysupgrade container. Never a flash tool."""
-import argparse,gzip,hashlib,importlib.util,io,json,struct,subprocess,tarfile,zlib
+import argparse,gzip,hashlib,io,json,struct,subprocess,tarfile,zlib
 from pathlib import Path
 from hkc_jdcloud_fdt import fdt
 
