@@ -7,6 +7,7 @@ p.add_argument('--audit-dir',required=True,type=Path)
 p.add_argument('--review-dir',required=True,type=Path)
 p.add_argument('--dependency-dir',required=True,type=Path)
 p.add_argument('--output',required=True,type=Path)
+p.add_argument('--package-db',type=Path,help='Verified metadata-only tar from offline packaging')
 a=p.parse_args()
 repo=Path(__file__).resolve().parents[1]
 out=a.output.resolve();audit=a.audit_dir.resolve();review=a.review_dir.resolve();pool=a.dependency_dir.resolve()
@@ -23,7 +24,7 @@ def put(p,data,mode=0o100644,origin='fixture'):
  for parent in Path(p).parents:
   n=parent.as_posix()
   if n!='.' and n not in entries:entries[n]=(b'',0o40755)
-clients={'usr/bin/lua','usr/bin/ssr-local','usr/bin/ssr-redir','usr/bin/xray','usr/bin/sslocal','usr/bin/jq','usr/bin/curl','usr/bin/resolveip','usr/bin/nping','usr/bin/microsocks','usr/bin/obfs-local','usr/bin/dns2tcp','usr/bin/tcping','usr/bin/ipt2socks','usr/bin/unzip','usr/libexec/base64-coreutils','sbin/uci','usr/bin/jshn','usr/bin/jsonfilter','usr/bin/sort','usr/libexec/sort-coreutils'}
+clients={'bin/opkg','usr/bin/lua','usr/bin/ssr-local','usr/bin/ssr-redir','usr/bin/xray','usr/bin/sslocal','usr/bin/jq','usr/bin/curl','usr/bin/resolveip','usr/bin/nping','usr/bin/microsocks','usr/bin/obfs-local','usr/bin/dns2tcp','usr/bin/tcping','usr/bin/ipt2socks','usr/bin/unzip','usr/libexec/base64-coreutils','sbin/uci','usr/bin/jshn','usr/bin/jsonfilter','usr/bin/sort','usr/libexec/sort-coreutils'}
 def allowed(p):
  return p in {'lib/functions.sh','lib/functions/system.sh','lib/functions/procd.sh','lib/config/uci.sh','usr/share/libubox/jshn.sh'} or p=='bin/busybox' or p in clients or (p.startswith(('lib/','usr/lib/')) and '.so' in Path(p).name and not p.startswith(('lib/modules/','lib/firmware/'))) or p.startswith(('usr/lib/lua/','usr/share/lua/','usr/lib/lua/luci/view/'))
 for line in (audit/'working-qwrt-inode-list.txt').read_text().splitlines():
@@ -106,6 +107,21 @@ put('test-cbi.lua',(fixtures/'test-cbi.lua').read_bytes().removeprefix(b'\xef\xb
 init=init.replace('echo HKC_OFFLINE_RUNTIME_END','/bin/ash /test-clients.sh\nlua /test-cbi.lua en\nlua /test-cbi.lua zh_cn\necho HKC_OFFLINE_RUNTIME_END')
 put('test-integration.sh',(fixtures/'test-integration.sh').read_bytes(),0o100755)
 init=init.replace('echo HKC_OFFLINE_RUNTIME_END','/bin/ash /test-integration.sh\necho HKC_OFFLINE_RUNTIME_END')
+if a.package_db:
+ import tarfile,re
+ expected=json.loads(a.package_db.with_name('PACKAGE-DB-EXPECTED.json').read_bytes())
+ if hashlib.sha256(a.package_db.read_bytes()).hexdigest()!=expected['tar_sha256']:raise ValueError('Package DB hash mismatch')
+ with tarfile.open(a.package_db) as tf:
+  seen=set()
+  for member in tf:
+   p=member.name
+   if not member.isfile() or not (p=='usr/lib/opkg/status' or re.fullmatch(r'usr/lib/opkg/info/[A-Za-z0-9+_.-]+\.(control|list|conffiles|md5sums)',p)):raise ValueError('Unexpected package test payload')
+   if p in seen or p in entries:raise ValueError('Duplicate package test payload')
+   seen.add(p);put(p,tf.extractfile(member).read(),0o100644,'package-metadata-test')
+ put('PACKAGE-DB-EXPECTED.json',json.dumps(expected).encode())
+ put('etc/opkg.conf',b'dest root /\nlists_dir ext /var/opkg-lists\narch all 100\narch aarch64_cortex-a53 200\n')
+ put('test-package-db.sh',(fixtures/'test-package-db.sh').read_bytes(),0o100755)
+ init=init.replace('echo HKC_OFFLINE_RUNTIME_END','/bin/ash /test-package-db.sh\necho HKC_OFFLINE_RUNTIME_END')
 put('init',init.encode(),0o100755)
 # newc archive, entirely in guest RAM; no original configuration or disks.
 data=bytearray()

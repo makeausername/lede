@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "input_source_commit": "704da376159c0356e31ac45f6f2761eb11235b00",
+  "assembly_sha256": "b6bb7a8d0151957abd93f22fde8cd4f0efb65ea5542808fefc4a4d589be409bb",
+  "rootfs_partition_bytes": 314572800,
+  "donor_controls": {
+    "lyaml": "13a46faf6a3d521cc674ce0e29bcd5ca79d02aa92743d2bab399f2b860a1c90e",
+    "chinadns-ng": "df9e0fcd8647157e9a4feccb697b24b8b1e5f3fee7dc2fe16fe43877c4348ff1",
+    "naiveproxy": "388692f56b9c0279a212caac0bcdb29ef126f8f37b605a8ddf28542b87fa2c5a",
+    "shadow-tls": "c23850a3cc54888739e3574740455248e1f4906896569185907cc306b27d4de3",
+    "v2ray-plugin": "b4cffc32acd0b9d6f67c6d093fddf86afb5b3178d0c7f8c1732f6902b80aa6f5"
+  },
+  "tools": {
+    "sqfs2tar.exe": "3985013235dbd83edf9b7b4bf91abe5087a25c5800245340d10e9f37ea6203c7",
+    "tar2sqfs.exe": "5d67ae86c9a192a234032a7abed9a8728cfb615d253f345f286f4979af24e615"
+  },
+  "mutated_existing_packages": {
+    "luci-app-ssr-plus": "189-3+hkc.qwrt1",
+    "luci-i18n-ssr-plus-zh-cn": "189-3+hkc.qwrt1"
+  },
+  "new_custom_packages": {
+    "luci-theme-argon": {
+      "version": "1.8.4+hkc.qwrt1",
+      "depends": "libc, luci-base"
+    },
+    "hkc-qwrt-integration": {
+      "version": "1.0-1",
+      "depends": "libc, lua, libuci-lua, coreutils-timeout, luci-app-ssr-plus, luci-theme-argon"
+    }
+  },
+  "ssr_extra_dependencies": [
+    "lyaml",
+    "chinadns-ng",
+    "naiveproxy",
+    "shadow-tls",
+    "v2ray-plugin",
+    "nping",
+    "xz",
+    "coreutils-timeout"
+  ],
+  "package_policy": "install hold installed; explicit maintenance required for mixed QWRT userspace packages",
+  "installable": false
+}
